@@ -1,0 +1,2053 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spider Network - Admin & Chat Pro</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #050505;
+    color: white;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ===== MATRIX BACKGROUND ===== */
+  #matrix {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* ===== SPIDER ===== */
+  #thread {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #aaa, transparent);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  #spider {
+    position: absolute;
+    width: 70px;
+    height: 70px;
+    z-index: 5;
+    pointer-events: none;
+    transition: transform 0.1s ease-out;
+  }
+
+  .spider-body {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    border-radius: 50%;
+    left: 17px;
+    top: 28px;
+    border: 2px solid #333;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+
+  .spider-head {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    border-radius: 50%;
+    left: 25px;
+    top: 12px;
+    border: 2px solid #333;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+
+  .eye {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    background: red;
+    border-radius: 50%;
+    box-shadow: 0 0 8px red, 0 0 15px rgba(255,0,0,0.5);
+    animation: eyeGlow 2s ease-in-out infinite;
+  }
+
+  @keyframes eyeGlow {
+    0%, 100% { box-shadow: 0 0 8px red, 0 0 15px rgba(255,0,0,0.5); }
+    50% { box-shadow: 0 0 15px red, 0 0 25px rgba(255,0,0,0.8); }
+  }
+
+  .eye.left { left: 4px; top: 6px; }
+  .eye.right { right: 4px; top: 6px; }
+
+  /* ===== CONTAINER ===== */
+  .container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(17, 17, 17, 0.98);
+    padding: 35px;
+    border-radius: 20px;
+    width: 380px;
+    z-index: 10;
+    max-width: 90vw;
+    box-shadow: 0 0 40px rgba(0, 255, 200, 0.2);
+    border: 1px solid #333;
+  }
+
+  /* ===== FORM ELEMENTS ===== */
+  input, textarea, select {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background: #1a1a1a;
+    color: white;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #00ffc8;
+    box-shadow: 0 0 10px rgba(0, 255, 200, 0.3);
+  }
+
+  button {
+    padding: 12px 18px;
+    background: linear-gradient(135deg, #00ffc8, #00e0b0);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s;
+    font-size: 14px;
+    color: #050505;
+    text-shadow: none;
+  }
+
+  button:hover {
+    background: linear-gradient(135deg, #00e0b0, #00c9a0);
+    transform: scale(1.02);
+    box-shadow: 0 5px 20px rgba(0, 255, 200, 0.4);
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  button.danger {
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    color: white;
+  }
+
+  button.danger:hover {
+    background: linear-gradient(135deg, #ff6666, #ff0000);
+    box-shadow: 0 5px 20px rgba(255, 0, 0, 0.4);
+  }
+
+  button.success {
+    background: linear-gradient(135deg, #00ff88, #00cc66);
+    color: #050505;
+  }
+
+  button.success:hover {
+    background: linear-gradient(135deg, #00ff99, #00ff77);
+    box-shadow: 0 5px 20px rgba(0, 255, 136, 0.4);
+  }
+
+  button.secondary {
+    background: linear-gradient(135deg, #444, #333);
+    color: white;
+  }
+
+  button.secondary:hover {
+    background: linear-gradient(135deg, #555, #444);
+  }
+
+  /* ===== DASHBOARD ===== */
+  #dashboard {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 10;
+    max-width: 90vw;
+    height: 85vh;
+    overflow: hidden;
+    background: rgba(17, 17, 17, 0.98);
+    border-radius: 20px;
+    padding: 20px;
+    border: 1px solid #333;
+    box-shadow: 0 0 40px rgba(0, 255, 200, 0.2);
+  }
+
+  #menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 15px;
+  }
+
+  #menu button {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 15px;
+    font-size: 13px;
+  }
+
+  .panel {
+    display: none;
+    height: calc(100% - 120px);
+    overflow-y: auto;
+    padding: 15px;
+    background: #0a0a0a;
+    border-radius: 15px;
+    scrollbar-width: thin;
+    scrollbar-color: #00ffc8 #222;
+  }
+
+  .panel::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .panel::-webkit-scrollbar-track {
+    background: #222;
+    border-radius: 4px;
+  }
+
+  .panel::-webkit-scrollbar-thumb {
+    background: #00ffc8;
+    border-radius: 4px;
+  }
+
+  /* ===== AVATAR ===== */
+  #avatar {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid #00ffc8;
+    background: #333;
+    display: block;
+    margin: 15px auto;
+    box-shadow: 0 0 20px rgba(0, 255, 200, 0.3);
+  }
+
+  /* ===== SCORE POPUP ===== */
+  .score-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #00ffc8;
+    font-size: 32px;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 100;
+    animation: scoreFade 1s ease-out forwards;
+    text-shadow: 0 0 20px rgba(0, 255, 200, 0.8);
+  }
+
+  @keyframes scoreFade {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -120%) scale(2); }
+  }
+
+  /* ===== CHAT EXPANDIDO ===== */
+  #chatPanel {
+    display: none;
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 450px;
+    height: 70vh;
+    background: rgba(17, 17, 17, 0.98);
+    border: 2px solid #00ffc8;
+    border-radius: 20px;
+    padding: 20px;
+    z-index: 25;
+    box-shadow: 0 0 50px rgba(0, 255, 200, 0.3);
+    display: flex;
+    flex-direction: column;
+  }
+
+  #chatPanel.hidden {
+    display: none !important;
+  }
+
+  .chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #333;
+  }
+
+  .chat-header h3 {
+    color: #00ffc8;
+    font-size: 18px;
+    margin: 0;
+  }
+
+  .chat-controls {
+    display: flex;
+    gap: 8px;
+  }
+
+  .chat-controls button {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-width: auto;
+  }
+
+  #chatMessages {
+    flex: 1;
+    overflow-y: auto;
+    background: #000;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    scrollbar-width: thin;
+    scrollbar-color: #00ffc8 #222;
+  }
+
+  #chatMessages::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  #chatMessages::-webkit-scrollbar-track {
+    background: #222;
+    border-radius: 3px;
+  }
+
+  #chatMessages::-webkit-scrollbar-thumb {
+    background: #00ffc8;
+    border-radius: 3px;
+  }
+
+  .chat-msg {
+    margin: 10px 0;
+    padding: 12px;
+    border-radius: 10px;
+    background: #111;
+    word-break: break-word;
+    position: relative;
+    animation: msgSlide 0.3s ease-out;
+  }
+
+  @keyframes msgSlide {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .chat-msg.own {
+    background: linear-gradient(135deg, rgba(0, 255, 200, 0.15), rgba(0, 200, 150, 0.1));
+    border-left: 4px solid #00ffc8;
+  }
+
+  .chat-msg.system {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 200, 0, 0.1));
+    border-left: 4px solid #ffd700;
+    text-align: center;
+  }
+
+  .chat-msg.admin {
+    border-left: 4px solid #ffd700;
+    background: rgba(255, 215, 0, 0.05);
+  }
+
+  .chat-msg.moderator {
+    border-left: 4px solid #00e0b0;
+    background: rgba(0, 224, 176, 0.05);
+  }
+
+  .chat-msg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+
+  .chat-msg-user {
+    font-weight: bold;
+    color: #00ffc8;
+  }
+
+  .chat-msg-time {
+    font-size: 11px;
+    color: #666;
+  }
+
+  .chat-msg-content {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #ddd;
+  }
+
+  .chat-msg-actions {
+    position: absolute;
+    right: 10px;
+    top: 10px;
+    display: none;
+    gap: 5px;
+  }
+
+  .chat-msg:hover .chat-msg-actions {
+    display: flex;
+  }
+
+  .chat-msg-actions button {
+    padding: 2px 6px;
+    font-size: 10px;
+    min-width: auto;
+    background: #333;
+    color: white;
+  }
+
+  .chat-msg-actions button:hover {
+    background: #444;
+  }
+
+  .chat-msg-actions .delete-btn {
+    background: #ff4444;
+  }
+
+  .chat-msg-actions .delete-btn:hover {
+    background: #ff6666;
+  }
+
+  .chat-input-area {
+    display: flex;
+    gap: 10px;
+  }
+
+  #chatInput {
+    flex: 1;
+    margin: 0;
+  }
+
+  .online-users {
+    display: flex;
+    gap: 5px;
+    flex-wrap: wrap;
+    margin-bottom: 10px;
+    padding: 8px;
+    background: #111;
+    border-radius: 8px;
+  }
+
+  .online-user {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 8px;
+    background: #222;
+    border-radius: 15px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+
+  .online-user:hover {
+    background: #333;
+  }
+
+  .online-user-avatar {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .online-user-status {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: #00ff88;
+    box-shadow: 0 0 5px #00ff88;
+  }
+
+  .chat-search {
+    margin-bottom: 10px;
+  }
+
+  .chat-search input {
+    margin: 0;
+    padding: 8px;
+    font-size: 12px;
+  }
+
+  /* ===== ADMIN PANEL ===== */
+  .admin-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: #111;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #333;
+    text-align: center;
+  }
+
+  .stat-card h4 {
+    color: #00ffc8;
+    margin-bottom: 5px;
+    font-size: 12px;
+  }
+
+  .stat-card .value {
+    font-size: 24px;
+    font-weight: bold;
+    color: white;
+  }
+
+  .admin-tools {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .admin-tools button {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .user-search {
+    margin-bottom: 15px;
+  }
+
+  .user-search input {
+    margin: 0;
+  }
+
+  .user-list {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: #111;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid transparent;
+  }
+
+  .user-item.banned {
+    border-left-color: #ff4444;
+    opacity: 0.6;
+  }
+
+  .user-item.admin {
+    border-left-color: #ffd700;
+  }
+
+  .user-item.moderator {
+    border-left-color: #00ffc8;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .user-item-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .user-item-name {
+    font-weight: bold;
+  }
+
+  .user-item-role {
+    font-size: 11px;
+    color: #666;
+  }
+
+  .user-actions {
+    display: flex;
+    gap: 5px;
+  }
+
+  .user-actions button {
+    padding: 6px 10px;
+    font-size: 11px;
+    min-width: auto;
+  }
+
+  .announcement-box {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 200, 0, 0.05));
+    border: 2px solid #ffd700;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+
+  .announcement-box h3 {
+    color: #ffd700;
+    margin-bottom: 10px;
+  }
+
+  .audit-log {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #111;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+  .audit-entry {
+    padding: 8px;
+    border-bottom: 1px solid #222;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .audit-entry:last-child {
+    border-bottom: none;
+  }
+
+  .audit-time {
+    color: #666;
+    font-size: 11px;
+  }
+
+  .audit-action {
+    color: #00ffc8;
+  }
+
+  /* ===== MESSAGES ===== */
+  .msgBox {
+    font-size: 13px;
+    margin: 8px 0;
+    min-height: 20px;
+    padding: 10px;
+    border-radius: 8px;
+    animation: msgFade 0.3s ease-out;
+  }
+
+  @keyframes msgFade {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msgBox.success {
+    background: rgba(0, 255, 136, 0.1);
+    color: #00ff88;
+    border: 1px solid #00ff88;
+  }
+
+  .msgBox.error {
+    background: rgba(255, 68, 68, 0.1);
+    color: #ff4444;
+    border: 1px solid #ff4444;
+  }
+
+  .msgBox.warning {
+    background: rgba(255, 200, 0, 0.1);
+    color: #ffcc00;
+    border: 1px solid #ffcc00;
+  }
+
+  /* ===== HEADINGS ===== */
+  h1 {
+    margin: 0 0 15px;
+    color: #00ffc8;
+    text-shadow: 0 0 20px rgba(0, 255, 200, 0.5);
+    font-size: 28px;
+  }
+
+  h2 {
+    color: #00ffc8;
+    margin: 15px 0 10px;
+    font-size: 18px;
+  }
+
+  h3 {
+    margin: 15px 0;
+    color: #00ffc8;
+  }
+
+  /* ===== BADGES ===== */
+  .badge {
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 3px 8px;
+    background: rgba(255, 215, 0, 0.2);
+    border-radius: 6px;
+    display: inline-block;
+    margin-left: 5px;
+  }
+
+  .adminUser {
+    color: #ffd700;
+    font-weight: bold;
+  }
+
+  .moderatorUser {
+    color: #00ffc8;
+    font-weight: bold;
+  }
+
+  /* ===== PASSWORD STRENGTH ===== */
+  #forcaSenha {
+    font-size: 12px;
+    margin: 5px 0;
+    padding: 8px;
+    border-radius: 6px;
+    background: #1a1a1a;
+  }
+
+  #forcaSenha.weak {
+    color: #ff4444;
+    border-left: 3px solid #ff4444;
+  }
+
+  #forcaSenha.medium {
+    color: #ffa500;
+    border-left: 3px solid #ffa500;
+  }
+
+  #forcaSenha.strong {
+    color: #00ff88;
+    border-left: 3px solid #00ff88;
+  }
+
+  /* ===== PASS BOX ===== */
+  .passBox {
+    position: relative;
+  }
+
+  .eyeBtn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    font-size: 20px;
+    user-select: none;
+    color: #00ffc8;
+  }
+
+  /* ===== RANKING ===== */
+  #rankingList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #rankingList > div {
+    padding: 12px;
+    background: #111;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+  }
+
+  #rankingList > div:hover {
+    background: #1a1a1a;
+    transform: translateX(5px);
+  }
+
+  /* ===== GAME MODAL ===== */
+  #gameModal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #111;
+    border: 2px solid #00ffc8;
+    border-radius: 20px;
+    padding: 20px;
+    z-index: 50;
+    box-shadow: 0 0 50px rgba(0, 255, 200, 0.4);
+  }
+
+  #gameModal button {
+    float: right;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: #00ffc8;
+    font-size: 24px;
+    padding: 0 10px;
+    line-height: 1;
+  }
+
+  #gameModal button:hover {
+    color: #ff4444;
+    transform: scale(1.2);
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media(max-width: 600px) {
+    #dashboard, .container {
+      width: 95vw !important;
+      height: auto !important;
+      max-height: 90vh !important;
+      overflow-y: auto;
+      padding: 20px !important;
+    }
+
+    .panel {
+      max-height: 50vh !important;
+      font-size: 14px;
+    }
+
+    #chatPanel {
+      width: 95vw !important;
+      height: 60vh !important;
+      right: 2.5vw !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      left: 2.5vw !important;
+    }
+
+    #spider, #thread {
+      display: none;
+    }
+
+    button {
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+
+    input, textarea, select {
+      font-size: 16px;
+    }
+
+    .admin-stats {
+      grid-template-columns: 1fr;
+    }
+
+    .user-item {
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
+    }
+
+    .user-actions {
+      justify-content: center;
+    }
+  }
+
+  /* ===== LOADING ===== */
+  .loading {
+    opacity: 0.6;
+    pointer-events: none;
+    position: relative;
+  }
+
+  .loading::after {
+    content: "...";
+    animation: loading 1s infinite;
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  @keyframes loading {
+    0%, 100% { content: "."; }
+    33% { content: ".."; }
+    66% { content: "..."; }
+  }
+
+  /* ===== NOTIFICATION ===== */
+  .notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 10px;
+    background: #111;
+    border: 2px solid #00ffc8;
+    z-index: 100;
+    animation: notifSlide 0.5s ease-out;
+    max-width: 300px;
+  }
+
+  @keyframes notifSlide {
+    from { opacity: 0; transform: translateX(100px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .notification.success {
+    border-color: #00ff88;
+  }
+
+  .notification.error {
+    border-color: #ff4444;
+  }
+</style>
+<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
+</head>
+<body>
+
+<canvas id="matrix"></canvas>
+
+<div id="thread"></div>
+<div id="spider">
+  <div class="spider-body"></div>
+  <div class="spider-head">
+    <div class="eye left"></div>
+    <div class="eye right"></div>
+  </div>
+</div>
+
+<!-- LOGIN / CADASTRO -->
+<div class="container" id="authBox">
+
+<div id="loginArea">
+<h3>🕷 Login</h3>
+<input id="loginUser" placeholder="Usuário" autocomplete="username" autocapitalize="none">
+<div class="passBox">
+<input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password">
+<span class="eyeBtn" onclick="toggleSenha('loginPass')">👁</span>
+</div>
+<button id="loginBtn" onclick="login()">Entrar</button>
+
+<div class="msgBox" id="loginMsg"></div>
+
+<p style="font-size:12px;color:#666;margin-top:15px">Não tem conta?</p>
+<button onclick="mostrarCadastro()" class="secondary" style="font-size:12px;padding:8px 12px">Criar conta</button>
+</div>
+
+<div id="cadastroArea" style="display:none">
+<h3>🕷 Criar conta</h3>
+<input id="newUser" placeholder="Usuário" autocomplete="username" autocapitalize="none">
+<input id="newEmail" placeholder="Email" autocomplete="email" type="email">
+<div class="passBox">
+<input id="newPass" type="password" placeholder="Senha forte" autocomplete="new-password">
+<span class="eyeBtn" onclick="toggleSenha('newPass')">👁</span>
+</div>
+<div id="forcaSenha"></div>
+<button id="registerBtn" onclick="register()">Cadastrar</button>
+<button onclick="mostrarLogin()" class="secondary">Voltar</button>
+
+<div class="msgBox" id="registerMsg"></div>
+</div>
+
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+<h1>🕷 Spider Network</h1>
+<p id="userText" style="margin-bottom:15px;font-size:16px"></p>
+
+<div id="menu">
+<button onclick="abrirPainel('home')">🏠 Home</button>
+<button onclick="abrirPainel('perfil')">👤 Perfil</button>
+<button onclick="abrirPainel('ranking')">🏆 Ranking</button>
+<button id="adminBtn" style="display:none" onclick="abrirPainel('admin')">⚙️ Admin</button>
+<button onclick="toggleChat()" class="success">💬 Chat</button>
+</div>
+
+<div id="home" class="panel">
+<h2>🎮 Mini Jogo</h2>
+<button onclick="toggleGame()">🕷 Capturar Moscas</button>
+<div id="gameModal">
+  <button onclick="toggleGame()">✖️</button>
+  <canvas id="modalGameCanvas" width="400" height="220" style="background:#000;display:block;border-radius:10px"></canvas>
+  <p style="text-align:center;font-size:12px;color:#666;margin:15px 0 0 0">Mova o mouse para capturar as moscas!</p>
+</div>
+</div>
+
+<div id="perfil" class="panel">
+<h2>👤 Meu Perfil</h2>
+<img id="avatar" alt="Avatar">
+<input type="file" id="avatarUpload" accept="image/*" style="display:none">
+<button onclick="document.getElementById('avatarUpload').click()" class="secondary" style="font-size:12px;padding:8px 12px">📷 Trocar avatar</button>
+<p style="margin:15px 0">Usuário: <strong id="perfilUser"></strong></p>
+<textarea id="bioInput" placeholder="Sua bio..." rows="4"></textarea>
+<button onclick="salvarPerfil()" class="success">💾 Salvar</button>
+<p id="stats" style="margin-top:15px;font-size:14px"></p>
+<div class="msgBox" id="profileMsg"></div>
+</div>
+
+<div id="ranking" class="panel">
+<h2>🏆 Ranking</h2>
+<div id="rankingList"></div>
+</div>
+
+<div id="admin" class="panel">
+<h2>⚙️ Painel Administrativo</h2>
+
+<div class="admin-stats">
+  <div class="stat-card">
+    <h4>👥 Usuários</h4>
+    <div class="value" id="statUsers">0</div>
+  </div>
+  <div class="stat-card">
+    <h4>💬 Mensagens</h4>
+    <div class="value" id="statMessages">0</div>
+  </div>
+  <div class="stat-card">
+    <h4>🪰 Moscas</h4>
+    <div class="value" id="statFlies">0</div>
+  </div>
+  <div class="stat-card">
+    <h4>🚫 Banidos</h4>
+    <div class="value" id="statBanned">0</div>
+  </div>
+</div>
+
+<div class="admin-tools">
+  <button onclick="adminShowUsers()" class="secondary">👥 Gerenciar Usuários</button>
+  <button onclick="adminShowAnnouncement()" class="secondary">📢 Anúncio</button>
+  <button onclick="adminShowAudit()" class="secondary">📋 Log de Auditoria</button>
+  <button onclick="adminClearChat()" class="danger">🗑️ Limpar Chat</button>
+</div>
+
+<div id="adminUsersSection" style="display:none">
+  <h3>👥 Gerenciar Usuários</h3>
+  <div class="user-search">
+    <input type="text" id="userSearchInput" placeholder="🔍 Buscar usuário..." oninput="filterUsers()">
+  </div>
+  <div class="user-list" id="userList"></div>
+</div>
+
+<div id="adminAnnouncementSection" style="display:none">
+  <h3>📢 Enviar Anúncio do Sistema</h3>
+  <div class="announcement-box">
+    <textarea id="announcementText" placeholder="Digite o anúncio do sistema..." rows="4"></textarea>
+    <button onclick="sendAnnouncement()" class="success" style="margin-top:10px">📢 Enviar Anúncio</button>
+  </div>
+</div>
+
+<div id="adminAuditSection" style="display:none">
+  <h3>📋 Log de Auditoria</h3>
+  <div class="audit-log" id="auditLog"></div>
+</div>
+</div>
+
+<button onclick="logout()" class="danger" style="margin-top:15px">🚪 Sair</button>
+</div>
+
+<!-- CHAT PANEL EXPANDIDO -->
+<div id="chatPanel" class="hidden">
+<div class="chat-header">
+  <h3>💬 Chat Global</h3>
+  <div class="chat-controls">
+    <button onclick="chatShowSearch()" class="secondary">🔍</button>
+    <button onclick="chatShowOnline()" class="secondary">👥</button>
+    <button onclick="toggleChat()" class="danger">✖</button>
+  </div>
+</div>
+
+<div class="chat-search" id="chatSearchBox" style="display:none">
+  <input type="text" id="chatSearchInput" placeholder="🔍 Buscar mensagens..." oninput="searchMessages()">
+</div>
+
+<div class="online-users" id="onlineUsers" style="display:none">
+  <div class="online-user">
+    <div class="online-user-status"></div>
+    <span>Carregando...</span>
+  </div>
+</div>
+
+<div id="chatMessages"></div>
+
+<div class="chat-input-area">
+  <input id="chatInput" placeholder="Digite sua mensagem..." onkeypress="if(event.key==='Enter')sendChat()">
+  <button onclick="sendChat()" class="success">➤</button>
+</div>
+</div>
+
+<script>
+/* ===== UTILITÁRIOS ===== */
+
+function sanitizeHTML(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function showMessage(elementId, message, type = '') {
+  const elem = document.getElementById(elementId);
+  if (!elem) return;
+  elem.textContent = message;
+  elem.className = 'msgBox ' + type;
+}
+
+function showNotification(message, type = 'success') {
+  const notif = document.createElement('div');
+  notif.className = 'notification ' + type;
+  notif.textContent = message;
+  document.body.appendChild(notif);
+  setTimeout(() => notif.remove(), 3000);
+}
+
+function getDefaultAvatar(username) {
+  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#fd79a8', '#a29bfe', '#74b9ff', '#55efc4'];
+  const color = colors[username.length % colors.length];
+  const initial = username.charAt(0).toUpperCase();
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 90 90"><rect width="90" height="90" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="45" font-weight="bold" fill="#333">${initial}</text></svg>`)}`;
+}
+
+function addAuditLog(action) {
+  let audit = JSON.parse(localStorage.getItem('auditLog') || '[]');
+  audit.unshift({
+    action: action,
+    user: currentUser,
+    time: new Date().toLocaleString('pt-BR')
+  });
+  if (audit.length > 100) audit = audit.slice(0, 100);
+  localStorage.setItem('auditLog', JSON.stringify(audit));
+}
+
+/* ===== HASH SHA-256 ===== */
+async function sha256(message) {
+  const msgBuffer = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
+
+/* ===== MATRIX ANIMATION ===== */
+const canvas = document.getElementById("matrix");
+const ctx = canvas.getContext("2d");
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+
+const letters = "01";
+const size = 14;
+let drops = [];
+
+function initDrops() {
+  drops = [];
+  for (let i = 0; i < canvas.width / size; i++) {
+    drops[i] = Math.random() * canvas.height / size;
+  }
+}
+initDrops();
+
+function drawMatrix() {
+  ctx.fillStyle = "rgba(5, 5, 5, 0.05)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#00ff9d";
+  ctx.font = size + "px monospace";
+
+  for (let i = 0; i < drops.length; i++) {
+    const t = letters[Math.floor(Math.random() * letters.length)];
+    ctx.fillText(t, i * size, drops[i] * size);
+    if (drops[i] * size > canvas.height && Math.random() > 0.975) {
+      drops[i] = 0;
+    }
+    drops[i]++;
+  }
+}
+setInterval(drawMatrix, 33);
+
+window.addEventListener('resize', () => {
+  resizeCanvas();
+  initDrops();
+});
+
+/* ===== SPIDER ANIMATION ===== */
+const spider = document.getElementById("spider");
+const thread = document.getElementById("thread");
+let sx = window.innerWidth / 2;
+let sy = 120;
+
+function updateSpider() {
+  spider.style.left = sx + "px";
+  spider.style.top = sy + "px";
+  thread.style.left = (sx + 35) + "px";
+  thread.style.height = sy + "px";
+}
+
+window.addEventListener("mousemove", (e) => {
+  if (window.innerWidth <= 600) return;
+  sx += (e.clientX - sx - 35) * 0.08;
+  sy += (e.clientY - sy - 35) * 0.08;
+  updateSpider();
+});
+
+window.addEventListener('touchmove', (e) => {
+  if (window.innerWidth <= 600) {
+    const touch = e.touches[0];
+    sx = touch.clientX;
+    sy = touch.clientY;
+    updateSpider();
+  }
+});
+
+updateSpider();
+
+/* ===== USER MANAGEMENT ===== */
+function getUsers() {
+  try {
+    return JSON.parse(localStorage.getItem("users") || "[]");
+  } catch (e) {
+    console.error("Erro ao carregar usuários:", e);
+    return [];
+  }
+}
+
+function saveUsers(users) {
+  try {
+    localStorage.setItem("users", JSON.stringify(users));
+  } catch (e) {
+    console.error("Erro ao salvar usuários:", e);
+  }
+}
+
+function getChat() {
+  try {
+    return JSON.parse(localStorage.getItem("chat") || "[]");
+  } catch (e) {
+    console.error("Erro ao carregar chat:", e);
+    return [];
+  }
+}
+
+function saveChat(chat) {
+  try {
+    localStorage.setItem("chat", JSON.stringify(chat));
+  } catch (e) {
+    console.error("Erro ao salvar chat:", e);
+  }
+}
+
+let currentUser = null;
+let isAdmin = false;
+let lastRegister = 0;
+
+const loginMsg = document.getElementById("loginMsg");
+const registerMsg = document.getElementById("registerMsg");
+const profileMsg = document.getElementById("profileMsg");
+
+/* ===== SESSÃO ===== */
+function checkSession() {
+  const session = localStorage.getItem("currentSession");
+  if (session) {
+    const sessionData = JSON.parse(session);
+    currentUser = sessionData.user;
+    isAdmin = sessionData.isAdmin;
+    abrirSistema();
+  }
+}
+
+/* ===== SENHA FORTE ===== */
+const newPass = document.getElementById("newPass");
+const forcaSenhaElem = document.getElementById("forcaSenha");
+
+newPass?.addEventListener("input", function() {
+  const v = this.value;
+  let score = 0;
+  if (v.length >= 8) score++;
+  if (/[A-Z]/.test(v)) score++;
+  if (/[a-z]/.test(v)) score++;
+  if (/[0-9]/.test(v)) score++;
+  if (/[@$!%*?&]/.test(v)) score++;
+
+  if (score <= 2) {
+    forcaSenhaElem.textContent = "⚠️ Senha fraca - Mínimo 8 caracteres, maiúscula, minúscula, número e símbolo";
+    forcaSenhaElem.className = "weak";
+  } else if (score <= 4) {
+    forcaSenhaElem.textContent = "⚡ Senha média - Adicione mais caracteres";
+    forcaSenhaElem.className = "medium";
+  } else {
+    forcaSenhaElem.textContent = "✅ Senha forte!";
+    forcaSenhaElem.className = "strong";
+  }
+});
+
+function toggleSenha(id) {
+  const c = document.getElementById(id);
+  c.type = c.type === 'password' ? 'text' : 'password';
+}
+
+/* ===== CADASTRO ===== */
+async function register() {
+  const registerBtn = document.getElementById("registerBtn");
+  showMessage("registerMsg", "");
+  registerBtn.classList.add("loading");
+  registerBtn.disabled = true;
+
+  const now = Date.now();
+  if (now - lastRegister < 5000) {
+    showMessage("registerMsg", "Aguarde 5 segundos antes de cadastrar novamente", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  const u = document.getElementById("newUser").value.trim();
+  const p = document.getElementById("newPass").value.trim();
+  const e = document.getElementById("newEmail").value.trim();
+
+  const senhaForte = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
+
+  if (!u || !p || !e) {
+    showMessage("registerMsg", "Preencha todos os campos", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  if (!senhaForte.test(p)) {
+    showMessage("registerMsg", "Use uma senha forte (8+ caracteres, maiúscula, minúscula, número e símbolo)", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  let users = getUsers();
+  if (users.find(x => x.user.toLowerCase() === u.toLowerCase())) {
+    showMessage("registerMsg", "Usuário já existe", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  const hashedPass = await sha256(p);
+  
+  users.push({
+    user: u,
+    pass: hashedPass,
+    email: e,
+    role: "user",
+    score: 0,
+    flies: 0,
+    bio: "",
+    avatar: "",
+    createdAt: now,
+    isBanned: false,
+    lastLogin: now
+  });
+  saveUsers(users);
+
+  lastRegister = now;
+  showMessage("registerMsg", "✅ Conta criada com sucesso!", "success");
+  
+  setTimeout(() => {
+    mostrarLogin();
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+  }, 1500);
+}
+
+function mostrarCadastro() {
+  showMessage("loginMsg", "");
+  showMessage("registerMsg", "");
+  loginArea.style.display = "none";
+  cadastroArea.style.display = "block";
+}
+
+function mostrarLogin() {
+  showMessage("loginMsg", "");
+  showMessage("registerMsg", "");
+  loginArea.style.display = "block";
+  cadastroArea.style.display = "none";
+}
+
+/* ===== LOGIN ===== */
+async function login() {
+  const loginBtn = document.getElementById("loginBtn");
+  showMessage("loginMsg", "");
+  loginBtn.classList.add("loading");
+  loginBtn.disabled = true;
+
+  const u = document.getElementById("loginUser").value.trim();
+  const p = document.getElementById("loginPass").value.trim();
+
+  if (!u || !p) {
+    showMessage("loginMsg", "Preencha usuário e senha", "error");
+    loginBtn.classList.remove("loading");
+    loginBtn.disabled = false;
+    return;
+  }
+
+  if (u === "Teste231" && p === "Knight_moon14@") {
+    currentUser = u;
+    isAdmin = true;
+    localStorage.setItem("currentSession", JSON.stringify({ user: currentUser, isAdmin: isAdmin }));
+    addAuditLog("Login admin");
+    abrirSistema();
+    loginBtn.classList.remove("loading");
+    loginBtn.disabled = false;
+    return;
+  }
+
+  let users = getUsers();
+  const hashedPass = await sha256(p);
+  let f = users.find(x => x.user.toLowerCase() === u.toLowerCase() && x.pass === hashedPass);
+
+  if (f) {
+    if (f.isBanned) {
+      showMessage("loginMsg", "🚫 Esta conta foi banida", "error");
+      loginBtn.classList.remove("loading");
+      loginBtn.disabled = false;
+      return;
+    }
+    
+    currentUser = f.user;
+    isAdmin = f.role === "admin" || f.role === "moderator";
+    
+    // Atualizar último login
+    f.lastLogin = Date.now();
+    saveUsers(users);
+    
+    localStorage.setItem("currentSession", JSON.stringify({ user: currentUser, isAdmin: isAdmin }));
+    abrirSistema();
+  } else {
+    showMessage("loginMsg", "Login inválido", "error");
+  }
+
+  loginBtn.classList.remove("loading");
+  loginBtn.disabled = false;
+}
+
+/* ===== SISTEMA ===== */
+function abrirSistema() {
+  authBox.style.display = "none";
+  dashboard.style.display = "block";
+  
+  const roleBadge = isAdmin ? '<span class="badge">ADMIN</span>' : '';
+  userText.innerHTML = `Usuário: <strong>${sanitizeHTML(currentUser)}</strong> ${roleBadge}`;
+  
+  if (isAdmin) {
+    adminBtn.style.display = "inline-block";
+    adminUpdateStats();
+  }
+  
+  abrirPainel('home');
+  atualizarRanking();
+  carregarPerfil();
+}
+
+function logout() {
+  if (confirm("Tem certeza que deseja sair?")) {
+    addAuditLog("Logout: " + currentUser);
+    localStorage.removeItem("currentSession");
+    currentUser = null;
+    isAdmin = false;
+    location.reload();
+  }
+}
+
+function abrirPainel(id) {
+  document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
+  document.getElementById(id).style.display = 'block';
+  
+  if (id === 'admin' && isAdmin) {
+    adminUpdateStats();
+  }
+}
+
+/* ===== ADMIN FUNÇÕES ===== */
+function adminUpdateStats() {
+  const users = getUsers();
+  const chat = getChat();
+  
+  const totalFlies = users.reduce((sum, u) => sum + (u.flies || 0), 0);
+  const bannedCount = users.filter(u => u.isBanned).length;
+  
+  document.getElementById('statUsers').textContent = users.length;
+  document.getElementById('statMessages').textContent = chat.length;
+  document.getElementById('statFlies').textContent = totalFlies;
+  document.getElementById('statBanned').textContent = bannedCount;
+}
+
+function adminShowUsers() {
+  document.getElementById('adminUsersSection').style.display = 'block';
+  document.getElementById('adminAnnouncementSection').style.display = 'none';
+  document.getElementById('adminAuditSection').style.display = 'none';
+  adminLoadUsers();
+}
+
+function adminShowAnnouncement() {
+  document.getElementById('adminUsersSection').style.display = 'none';
+  document.getElementById('adminAnnouncementSection').style.display = 'block';
+  document.getElementById('adminAuditSection').style.display = 'none';
+}
+
+function adminShowAudit() {
+  document.getElementById('adminUsersSection').style.display = 'none';
+  document.getElementById('adminAnnouncementSection').style.display = 'none';
+  document.getElementById('adminAuditSection').style.display = 'block';
+  adminLoadAudit();
+}
+
+function adminLoadUsers() {
+  const users = getUsers();
+  const userList = document.getElementById('userList');
+  userList.innerHTML = '';
+  
+  users.forEach((u, index) => {
+    const div = document.createElement('div');
+    div.className = `user-item ${u.isBanned ? 'banned' : ''} ${u.role}`;
+    
+    const roleIcon = u.role === 'admin' ? '👑' : (u.role === 'moderator' ? '⚡' : '');
+    const roleText = u.isBanned ? '🚫 Banido' : (u.role || 'user');
+    
+    div.innerHTML = `
+      <div class="user-info">
+        <img src="${u.avatar || getDefaultAvatar(u.user)}" class="user-item-avatar" alt="avatar">
+        <div>
+          <div class="user-item-name">${roleIcon} ${sanitizeHTML(u.user)}</div>
+          <div class="user-item-role">${roleText} | 🪰 ${u.flies || 0} | ⭐ ${u.score || 0}</div>
+        </div>
+      </div>
+      <div class="user-actions">
+        ${u.isBanned ? 
+          `<button onclick="adminUnbanUser(${index})" class="success">✅ Desbanir</button>` :
+          `<button onclick="adminBanUser(${index})" class="danger">🚫 Banir</button>`
+        }
+        ${u.role !== 'admin' ? `
+          <button onclick="adminPromoteUser(${index})" class="secondary">⬆️ Promover</button>
+          <button onclick="adminDemoteUser(${index})" class="secondary">⬇️ Rebaixar</button>
+          <button onclick="adminDeleteUser(${index})" class="danger">🗑️ Deletar</button>
+        ` : ''}
+      </div>
+    `;
+    
+    userList.appendChild(div);
+  });
+}
+
+function filterUsers() {
+  const searchTerm = document.getElementById('userSearchInput').value.toLowerCase();
+  const users = getUsers();
+  const userList = document.getElementById('userList');
+  userList.innerHTML = '';
+  
+  users.forEach((u, index) => {
+    if (u.user.toLowerCase().includes(searchTerm)) {
+      const div = document.createElement('div');
+      div.className = `user-item ${u.isBanned ? 'banned' : ''} ${u.role}`;
+      
+      const roleIcon = u.role === 'admin' ? '👑' : (u.role === 'moderator' ? '⚡' : '');
+      const roleText = u.isBanned ? '🚫 Banido' : (u.role || 'user');
+      
+      div.innerHTML = `
+        <div class="user-info">
+          <img src="${u.avatar || getDefaultAvatar(u.user)}" class="user-item-avatar" alt="avatar">
+          <div>
+            <div class="user-item-name">${roleIcon} ${sanitizeHTML(u.user)}</div>
+            <div class="user-item-role">${roleText} | 🪰 ${u.flies || 0} | ⭐ ${u.score || 0}</div>
+          </div>
+        </div>
+        <div class="user-actions">
+          ${u.isBanned ? 
+            `<button onclick="adminUnbanUser(${index})" class="success">✅ Desbanir</button>` :
+            `<button onclick="adminBanUser(${index})" class="danger">🚫 Banir</button>`
+          }
+          ${u.role !== 'admin' ? `
+            <button onclick="adminPromoteUser(${index})" class="secondary">⬆️ Promover</button>
+            <button onclick="adminDemoteUser(${index})" class="secondary">⬇️ Rebaixar</button>
+            <button onclick="adminDeleteUser(${index})" class="danger">🗑️ Deletar</button>
+          ` : ''}
+        </div>
+      `;
+      
+      userList.appendChild(div);
+    }
+  });
+}
+
+function adminBanUser(index) {
+  if (!confirm("Tem certeza que deseja banir este usuário?")) return;
+  
+  let users = getUsers();
+  users[index].isBanned = true;
+  saveUsers(users);
+  
+  addAuditLog(`Banir usuário: ${users[index].user}`);
+  showNotification(`Usuário ${users[index].user} banido!`, 'success');
+  adminLoadUsers();
+  adminUpdateStats();
+}
+
+function adminUnbanUser(index) {
+  let users = getUsers();
+  users[index].isBanned = false;
+  saveUsers(users);
+  
+  addAuditLog(`Desbanir usuário: ${users[index].user}`);
+  showNotification(`Usuário ${users[index].user} desbanido!`, 'success');
+  adminLoadUsers();
+  adminUpdateStats();
+}
+
+function adminPromoteUser(index) {
+  let users = getUsers();
+  if (users[index].role === 'moderator') {
+    users[index].role = 'admin';
+  } else {
+    users[index].role = 'moderator';
+  }
+  saveUsers(users);
+  
+  addAuditLog(`Promover usuário: ${users[index].user} para ${users[index].role}`);
+  showNotification(`Usuário promovido para ${users[index].role}!`, 'success');
+  adminLoadUsers();
+}
+
+function adminDemoteUser(index) {
+  let users = getUsers();
+  users[index].role = 'user';
+  saveUsers(users);
+  
+  addAuditLog(`Rebaixar usuário: ${users[index].user}`);
+  showNotification(`Usuário rebaixado para user!`, 'success');
+  adminLoadUsers();
+}
+
+function adminDeleteUser(index) {
+  if (!confirm("⚠️ Tem certeza que deseja DELETAR este usuário permanentemente?")) return;
+  
+  let users = getUsers();
+  const deletedUser = users[index].user;
+  users.splice(index, 1);
+  saveUsers(users);
+  
+  addAuditLog(`Deletar usuário: ${deletedUser}`);
+  showNotification(`Usuário ${deletedUser} deletado!`, 'error');
+  adminLoadUsers();
+  adminUpdateStats();
+}
+
+function sendAnnouncement() {
+  const text = document.getElementById('announcementText').value.trim();
+  if (!text) {
+    showNotification("Digite um anúncio!", 'error');
+    return;
+  }
+  
+  let chat = getChat();
+  chat.push({
+    id: Date.now(),
+    user: 'SISTEMA',
+    msg: text,
+    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
+    role: 'system',
+    isSystem: true
+  });
+  
+  saveChat(chat);
+  document.getElementById('announcementText').value = '';
+  
+  addAuditLog(`Anúncio: ${text}`);
+  showNotification("Anúncio enviado!", 'success');
+  adminUpdateStats();
+  
+  if (document.getElementById('chatPanel').classList.contains('hidden') === false) {
+    loadChat();
+  }
+}
+
+function adminClearChat() {
+  if (!confirm("⚠️ Tem certeza que deseja limpar TODO o chat?")) return;
+  
+  localStorage.removeItem('chat');
+  addAuditLog("Limpar chat");
+  showNotification("Chat limpo!", 'success');
+  adminUpdateStats();
+  
+  if (document.getElementById('chatPanel').classList.contains('hidden') === false) {
+    loadChat();
+  }
+}
+
+function adminLoadAudit() {
+  const audit = JSON.parse(localStorage.getItem('auditLog') || '[]');
+  const auditLog = document.getElementById('auditLog');
+  auditLog.innerHTML = '';
+  
+  if (audit.length === 0) {
+    auditLog.innerHTML = '<div style="text-align:center;color:#666;padding:20px">Nenhum registro</div>';
+    return;
+  }
+  
+  audit.forEach(entry => {
+    const div = document.createElement('div');
+    div.className = 'audit-entry';
+    div.innerHTML = `
+      <div>
+        <span class="audit-action">${sanitizeHTML(entry.action)}</span>
+        <small>por ${sanitizeHTML(entry.user)}</small>
+      </div>
+      <div class="audit-time">${entry.time}</div>
+    `;
+    auditLog.appendChild(div);
+  });
+}
+
+/* ===== PERFIL ===== */
+function carregarPerfil() {
+  let users = getUsers();
+  let u = users.find(x => x.user === currentUser);
+  
+  if (!u) {
+    console.error("Usuário não encontrado:", currentUser);
+    return;
+  }
+
+  perfilUser.textContent = sanitizeHTML(u.user);
+  bioInput.value = u.bio || "";
+  avatar.src = u.avatar || getDefaultAvatar(u.user);
+  stats.textContent = `🪰 Moscas: ${u.flies || 0} | ⭐ Pontos: ${u.score || 0} | 📅 Membro desde: ${new Date(u.createdAt).toLocaleDateString('pt-BR')}`;
+  profileMsg.textContent = "";
+}
+
+avatarUpload.onchange = function() {
+  const file = this.files[0];
+  if (!file) return;
+  
+  if (!file.type.startsWith('image/')) {
+    showMessage("profileMsg", "Selecione uma imagem válida", "error");
+    return;
+  }
+  
+  if (file.size > 5 * 1024 * 1024) {
+    showMessage("profileMsg", "Imagem deve ter menos de 5MB", "error");
+    return;
+  }
+
+  const r = new FileReader();
+  r.onload = e => {
+    avatar.src = e.target.result;
+  };
+  r.readAsDataURL(file);
+}
+
+function salvarPerfil() {
+  let users = getUsers();
+  let uIndex = users.findIndex(x => x.user === currentUser);
+  
+  if (uIndex === -1) {
+    showMessage("profileMsg", "Erro ao salvar perfil", "error");
+    return;
+  }
+
+  users[uIndex].bio = bioInput.value;
+  users[uIndex].avatar = avatar.src;
+  saveUsers(users);
+  
+  showMessage("profileMsg", "✅ Perfil salvo!", "success");
+  setTimeout(() => profileMsg.textContent = "", 3000);
+}
+
+/* ===== JOGO ===== */
+const spiderGame = document.getElementById("gameModal");
+const gcanvas = document.getElementById("modalGameCanvas");
+const gctx = gcanvas.getContext("2d");
+
+let player = { x: 200, y: 120 };
+let flies = [];
+let gameScore = 0;
+
+function toggleGame() {
+  spiderGame.style.display = spiderGame.style.display === "block" ? "none" : "block";
+  if (spiderGame.style.display === "block") {
+    flies = [];
+  }
+}
+
+gcanvas.addEventListener("mousemove", e => {
+  const r = gcanvas.getBoundingClientRect();
+  player.x = e.clientX - r.left;
+  player.y = e.clientY - r.top;
+});
+
+gcanvas.addEventListener("touchmove", e => {
+  e.preventDefault();
+  const r = gcanvas.getBoundingClientRect();
+  const touch = e.touches[0];
+  player.x = touch.clientX - r.left;
+  player.y = touch.clientY - r.top;
+});
+
+function spawnFly() {
+  flies.push({
+    x: Math.random() * 400,
+    y: Math.random() * 220,
+    vx: (Math.random() - 0.5) * 2,
+    vy: (Math.random() - 0.5) * 2
+  });
+}
+
+function showScorePopup(score) {
+  const popup = document.createElement('div');
+  popup.className = 'score-popup';
+  popup.textContent = `+${score}`;
+  document.body.appendChild(popup);
+  setTimeout(() => popup.remove(), 1000);
+}
+
+function gameLoop() {
+  gctx.clearRect(0, 0, 400, 220);
+
+  gctx.fillStyle = "#00ffc8";
+  gctx.beginPath();
+  gctx.arc(player.x, player.y, 12, 0, Math.PI * 2);
+  gctx.fill();
+  gctx.shadowColor = "#00ffc8";
+  gctx.shadowBlur = 15;
+  gctx.fill();
+  gctx.shadowBlur = 0;
+
+  flies.forEach((f, i) => {
+    f.x += f.vx;
+    f.y += f.vy;
+    
+    if (f.x < 0 || f.x > 400) f.vx *= -1;
+    if (f.y < 0 || f.y > 220) f.vy *= -1;
+    
+    gctx.fillStyle = "#00ff88";
+    gctx.shadowColor = "#00ff88";
+    gctx.shadowBlur = 10;
+    gctx.beginPath();
+    gctx.arc(f.x, f.y, 5, 0, Math.PI * 2);
+    gctx.fill();
+    gctx.shadowBlur = 0;
+
+    if (Math.hypot(f.x - player.x, f.y - player.y) < 15) {
+      flies.splice(i, 1);
+      salvarMosca();
+      showScorePopup(10);
+    }
+  });
+}
+
+setInterval(() => {
+  if (spiderGame.style.display === "block") {
+    if (Math.random() < 0.3) spawnFly();
+    gameLoop();
+  }
+}, 100);
+
+function salvarMosca() {
+  let users = getUsers();
+  let uIndex = users.findIndex(x => x.user === currentUser);
+  
+  if (uIndex === -1) return;
+  
+  users[uIndex].flies = (users[uIndex].flies || 0) + 1;
+  users[uIndex].score = (users[uIndex].score || 0) + 10;
+  saveUsers(users);
+  atualizarRanking();
+  carregarPerfil();
+  
+  if (isAdmin) {
+    adminUpdateStats();
+  }
+}
+
+/* ===== RANKING ===== */
+function atualizarRanking() {
+  let users = getUsers();
+  users.sort((a, b) => (b.score || 0) - (a.score || 0));
+
+  let html = "";
+  users.forEach((u, i) => {
+    const roleClass = u.role === "moderator" ? "moderatorUser" : (u.role === "admin" ? "adminUser" : "");
+    const roleIcon = u.role === "admin" ? "👑" : (u.role === "moderator" ? "⚡" : "");
+    const bannedText = u.isBanned ? " 🚫" : "";
+    html += `<div>
+      <span><strong>${i + 1}.</strong> ${roleIcon} <span class="${roleClass}">${sanitizeHTML(u.user)}${bannedText}</span></span>
+      <strong>${u.score || 0}</strong>
+    </div>`;
+  });
+
+  document.getElementById("rankingList").innerHTML = html;
+}
+
+/* ===== CHAT EXPANDIDO ===== */
+function toggleChat() {
+  const chatPanel = document.getElementById('chatPanel');
+  chatPanel.classList.toggle('hidden');
+  
+  if (!chatPanel.classList.contains('hidden')) {
+    loadChat();
+    chatLoadOnline();
+    document.getElementById('chatInput').focus();
+  }
+}
+
+function chatShowSearch() {
+  const searchBox = document.getElementById('chatSearchBox');
+  searchBox.style.display = searchBox.style.display === 'none' ? 'block' : 'none';
+}
+
+function chatShowOnline() {
+  const onlineUsers = document.getElementById('onlineUsers');
+  onlineUsers.style.display = onlineUsers.style.display === 'none' ? 'flex' : 'none';
+  
+  if (onlineUsers.style.display === 'flex') {
+    chatLoadOnline();
+  }
+}
+
+function chatLoadOnline() {
+  const users = getUsers();
+  const onlineDiv = document.getElementById('onlineUsers');
+  onlineDiv.innerHTML = '';
+  
+  // Mostrar todos os usuários como "online" (simulação)
+  users.slice(0, 10).forEach(u => {
+    if (u.isBanned) return;
+    
+    const div = document.createElement('div');
+    div.className = 'online-user';
+    div.innerHTML = `
+      <div class="online-user-status"></div>
+      <img src="${u.avatar || getDefaultAvatar(u.user)}" class="online-user-avatar" alt="${u.user}">
+      <span>${sanitizeHTML(u.user)}</span>
+    `;
+    onlineDiv.appendChild(div);
+  });
+}
+
+function searchMessages() {
+  const searchTerm = document.getElementById('chatSearchInput').value.toLowerCase();
+  let chat = getChat();
+  
+  const filtered = chat.filter(m => 
+    m.msg.toLowerCase().includes(searchTerm) || 
+    m.user.toLowerCase().includes(searchTerm)
+  );
+  
+  displayChatMessages(filtered);
+}
+
+function sendChat() {
+  const t = chatInput.value.trim();
+  if (!t) return;
+
+  let chat = getChat();
+  const timestamp = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  
+  let users = getUsers();
+  let u = users.find(x => x.user === currentUser);
+  const role = u ? (u.role || 'user') : 'user';
+
+  chat.push({
+    id: Date.now(),
+    user: currentUser,
+    msg: t,
+    time: timestamp,
+    role: role
+  });
+  
+  if (chat.length > 100) {
+    chat = chat.slice(-100);
+  }
+  
+  saveChat(chat);
+  chatInput.value = "";
+  loadChat();
+  
+  if (isAdmin) {
+    adminUpdateStats();
+  }
+}
+
+function deleteMessage(msgId) {
+  if (!confirm("Deletar esta mensagem?")) return;
+  
+  let chat = getChat();
+  chat = chat.filter(m => m.id !== msgId);
+  saveChat(chat);
+  loadChat();
+  
+  if (isAdmin) {
+    adminUpdateStats();
+  }
+}
+
+function loadChat() {
+  let chat = getChat();
+  displayChatMessages(chat);
+}
+
+function displayChatMessages(messages) {
+  const chatMessages = document.getElementById('chatMessages');
+  chatMessages.innerHTML = "";
+
+  if (messages.length === 0) {
+    chatMessages.innerHTML = '<div style="text-align:center;color:#666;padding:20px">💬 Nenhuma mensagem</div>';
+    return;
+  }
+
+  messages.slice(-50).forEach(m => {
+    const d = document.createElement("div");
+    const isOwn = m.user === currentUser;
+    const isSystem = m.isSystem || m.user === 'SISTEMA';
+    
+    let roleClass = '';
+    let roleBadge = '';
+    
+    if (!isSystem) {
+      roleClass = m.role === 'admin' ? 'admin' : (m.role === 'moderator' ? 'moderator' : '');
+      roleBadge = m.role === 'admin' ? '<span class="chat-msg-role">👑</span>' : (m.role === 'moderator' ? '<span class="chat-msg-role">⚡</span>' : '');
+    }
+    
+    d.className = `chat-msg ${isOwn ? 'own' : ''} ${isSystem ? 'system' : ''} ${roleClass}`;
+    d.innerHTML = `
+      ${!isSystem && (isOwn || isAdmin) ? `<div class="chat-msg-actions"><button class="delete-btn" onclick="deleteMessage(${m.id})">🗑️</button></div>` : ''}
+      <div class="chat-msg-header">
+        <span class="chat-msg-user">${isSystem ? '📢 SISTEMA' : roleBadge + sanitizeHTML(m.user)}</span>
+        <span class="chat-msg-time">${m.time}</span>
+      </div>
+      <div class="chat-msg-content">${sanitizeHTML(m.msg)}</div>
+    `;
+    chatMessages.appendChild(d);
+  });
+
+  chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Event listeners
+document.getElementById('loginPass').addEventListener('keypress', function(e) {
+  if (e.key === 'Enter') login();
+});
+
+// Inicialização
+checkSession();
+</script>
+</body>
+</html>
