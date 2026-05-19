@@ -285,7 +285,6 @@
     padding: 20px;
     z-index: 25;
     box-shadow: 0 0 50px rgba(0, 255, 200, 0.3);
-    display: flex;
     flex-direction: column;
   }
 
@@ -403,38 +402,6 @@
     color: #ddd;
   }
 
-  .chat-msg-actions {
-    position: absolute;
-    right: 10px;
-    top: 10px;
-    display: none;
-    gap: 5px;
-  }
-
-  .chat-msg:hover .chat-msg-actions {
-    display: flex;
-  }
-
-  .chat-msg-actions button {
-    padding: 2px 6px;
-    font-size: 10px;
-    min-width: auto;
-    background: #333;
-    color: white;
-  }
-
-  .chat-msg-actions button:hover {
-    background: #444;
-  }
-
-  .chat-msg-actions .delete-btn {
-    background: #ff4444;
-  }
-
-  .chat-msg-actions .delete-btn:hover {
-    background: #ff6666;
-  }
-
   .chat-input-area {
     display: flex;
     gap: 10px;
@@ -443,57 +410,6 @@
   #chatInput {
     flex: 1;
     margin: 0;
-  }
-
-  .online-users {
-    display: flex;
-    gap: 5px;
-    flex-wrap: wrap;
-    margin-bottom: 10px;
-    padding: 8px;
-    background: #111;
-    border-radius: 8px;
-  }
-
-  .online-user {
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 8px;
-    background: #222;
-    border-radius: 15px;
-    font-size: 12px;
-    cursor: pointer;
-    transition: all 0.2s;
-  }
-
-  .online-user:hover {
-    background: #333;
-  }
-
-  .online-user-avatar {
-    width: 20px;
-    height: 20px;
-    border-radius: 50%;
-    object-fit: cover;
-  }
-
-  .online-user-status {
-    width: 8px;
-    height: 8px;
-    border-radius: 50%;
-    background: #00ff88;
-    box-shadow: 0 0 5px #00ff88;
-  }
-
-  .chat-search {
-    margin-bottom: 10px;
-  }
-
-  .chat-search input {
-    margin: 0;
-    padding: 8px;
-    font-size: 12px;
   }
 
   /* ===== ADMIN PANEL ===== */
@@ -717,11 +633,6 @@
     font-weight: bold;
   }
 
-  .moderatorUser {
-    color: #00ffc8;
-    font-weight: bold;
-  }
-
   /* ===== PASSWORD STRENGTH ===== */
   #forcaSenha {
     font-size: 12px;
@@ -916,7 +827,6 @@
     border-color: #ff4444;
   }
 </style>
-<script src="https://sites.super.myninja.ai/_assets/ninja-daytona-script.js"></script>
 </head>
 <body>
 
@@ -1065,20 +975,7 @@
 <div class="chat-header">
   <h3>💬 Chat Global</h3>
   <div class="chat-controls">
-    <button onclick="chatShowSearch()" class="secondary">🔍</button>
-    <button onclick="chatShowOnline()" class="secondary">👥</button>
     <button onclick="toggleChat()" class="danger">✖</button>
-  </div>
-</div>
-
-<div class="chat-search" id="chatSearchBox" style="display:none">
-  <input type="text" id="chatSearchInput" placeholder="🔍 Buscar mensagens..." oninput="searchMessages()">
-</div>
-
-<div class="online-users" id="onlineUsers" style="display:none">
-  <div class="online-user">
-    <div class="online-user-status"></div>
-    <span>Carregando...</span>
   </div>
 </div>
 
@@ -1091,9 +988,19 @@
 </div>
 
 <script>
-/* ===== UTILITÁRIOS ===== */
+// ===== CONFIGURAÇÃO DA API =====
+// MUDE ISSO PARA SUA URL DO RENDER DEPOIS DE DEPLOYAR
+const API_URL = 'http://localhost:3000/api';
+// const API_URL = 'https://spider-api-XXXX.onrender.com/api';
 
+// Variáveis globais
+let currentUser = null;
+let authToken = localStorage.getItem('spiderToken');
+let lastRegister = 0;
+
+// ===== UTILITÁRIOS =====
 function sanitizeHTML(str) {
+  if (!str) return '';
   const div = document.createElement('div');
   div.textContent = str;
   return div.innerHTML;
@@ -1102,7 +1009,7 @@ function sanitizeHTML(str) {
 function showMessage(elementId, message, type = '') {
   const elem = document.getElementById(elementId);
   if (!elem) return;
-  elem.textContent = message;
+  elem.innerHTML = sanitizeHTML(message);
   elem.className = 'msgBox ' + type;
 }
 
@@ -1115,32 +1022,59 @@ function showNotification(message, type = 'success') {
 }
 
 function getDefaultAvatar(username) {
-  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7', '#dfe6e9', '#fd79a8', '#a29bfe', '#74b9ff', '#55efc4'];
+  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7'];
   const color = colors[username.length % colors.length];
   const initial = username.charAt(0).toUpperCase();
-  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90" viewBox="0 0 90 90"><rect width="90" height="90" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="45" font-weight="bold" fill="#333">${initial}</text></svg>`)}`;
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90"><rect width="90" height="90" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="45" font-weight="bold" fill="#333">${initial}</text></svg>`)}`;
 }
 
-function addAuditLog(action) {
-  let audit = JSON.parse(localStorage.getItem('auditLog') || '[]');
-  audit.unshift({
-    action: action,
-    user: currentUser,
-    time: new Date().toLocaleString('pt-BR')
-  });
-  if (audit.length > 100) audit = audit.slice(0, 100);
-  localStorage.setItem('auditLog', JSON.stringify(audit));
+// ===== API HELPER =====
+async function apiCall(endpoint, options = {}) {
+  const url = API_URL + endpoint;
+  
+  const config = {
+    headers: {
+      'Content-Type': 'application/json',
+      ...(authToken && { 'Authorization': 'Bearer ' + authToken }),
+      ...options.headers
+    },
+    ...options
+  };
+  
+  if (config.body && typeof config.body === 'object') {
+    config.body = JSON.stringify(config.body);
+  }
+  
+  try {
+    const response = await fetch(url, config);
+    const data = await response.json();
+    
+    if (!response.ok) {
+      throw new Error(data.error || 'Erro na requisição');
+    }
+    
+    return data;
+  } catch (err) {
+    console.error('API Error:', err);
+    throw err;
+  }
 }
 
-/* ===== HASH SHA-256 ===== */
-async function sha256(message) {
-  const msgBuffer = new TextEncoder().encode(message);
-  const hashBuffer = await crypto.subtle.digest('SHA-256', msgBuffer);
-  const hashArray = Array.from(new Uint8Array(hashBuffer));
-  return hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+// ===== SESSÃO =====
+async function checkSession() {
+  if (!authToken) return;
+  
+  try {
+    const user = await apiCall('/profile');
+    currentUser = user;
+    abrirSistema();
+  } catch (err) {
+    // Token inválido, limpa
+    logout();
+  }
 }
 
-/* ===== MATRIX ANIMATION ===== */
+// ===== MATRIX ANIMATION =====
 const canvas = document.getElementById("matrix");
 const ctx = canvas.getContext("2d");
 
@@ -1184,7 +1118,7 @@ window.addEventListener('resize', () => {
   initDrops();
 });
 
-/* ===== SPIDER ANIMATION ===== */
+// ===== SPIDER ANIMATION =====
 const spider = document.getElementById("spider");
 const thread = document.getElementById("thread");
 let sx = window.innerWidth / 2;
@@ -1204,72 +1138,9 @@ window.addEventListener("mousemove", (e) => {
   updateSpider();
 });
 
-window.addEventListener('touchmove', (e) => {
-  if (window.innerWidth <= 600) {
-    const touch = e.touches[0];
-    sx = touch.clientX;
-    sy = touch.clientY;
-    updateSpider();
-  }
-});
-
 updateSpider();
 
-/* ===== USER MANAGEMENT ===== */
-function getUsers() {
-  try {
-    return JSON.parse(localStorage.getItem("users") || "[]");
-  } catch (e) {
-    console.error("Erro ao carregar usuários:", e);
-    return [];
-  }
-}
-
-function saveUsers(users) {
-  try {
-    localStorage.setItem("users", JSON.stringify(users));
-  } catch (e) {
-    console.error("Erro ao salvar usuários:", e);
-  }
-}
-
-function getChat() {
-  try {
-    return JSON.parse(localStorage.getItem("chat") || "[]");
-  } catch (e) {
-    console.error("Erro ao carregar chat:", e);
-    return [];
-  }
-}
-
-function saveChat(chat) {
-  try {
-    localStorage.setItem("chat", JSON.stringify(chat));
-  } catch (e) {
-    console.error("Erro ao salvar chat:", e);
-  }
-}
-
-let currentUser = null;
-let isAdmin = false;
-let lastRegister = 0;
-
-const loginMsg = document.getElementById("loginMsg");
-const registerMsg = document.getElementById("registerMsg");
-const profileMsg = document.getElementById("profileMsg");
-
-/* ===== SESSÃO ===== */
-function checkSession() {
-  const session = localStorage.getItem("currentSession");
-  if (session) {
-    const sessionData = JSON.parse(session);
-    currentUser = sessionData.user;
-    isAdmin = sessionData.isAdmin;
-    abrirSistema();
-  }
-}
-
-/* ===== SENHA FORTE ===== */
+// ===== SENHA =====
 const newPass = document.getElementById("newPass");
 const forcaSenhaElem = document.getElementById("forcaSenha");
 
@@ -1283,10 +1154,10 @@ newPass?.addEventListener("input", function() {
   if (/[@$!%*?&]/.test(v)) score++;
 
   if (score <= 2) {
-    forcaSenhaElem.textContent = "⚠️ Senha fraca - Mínimo 8 caracteres, maiúscula, minúscula, número e símbolo";
+    forcaSenhaElem.textContent = "⚠️ Senha fraca";
     forcaSenhaElem.className = "weak";
   } else if (score <= 4) {
-    forcaSenhaElem.textContent = "⚡ Senha média - Adicione mais caracteres";
+    forcaSenhaElem.textContent = "⚡ Senha média";
     forcaSenhaElem.className = "medium";
   } else {
     forcaSenhaElem.textContent = "✅ Senha forte!";
@@ -1299,7 +1170,7 @@ function toggleSenha(id) {
   c.type = c.type === 'password' ? 'text' : 'password';
 }
 
-/* ===== CADASTRO ===== */
+// ===== CADASTRO =====
 async function register() {
   const registerBtn = document.getElementById("registerBtn");
   showMessage("registerMsg", "");
@@ -1308,7 +1179,7 @@ async function register() {
 
   const now = Date.now();
   if (now - lastRegister < 5000) {
-    showMessage("registerMsg", "Aguarde 5 segundos antes de cadastrar novamente", "error");
+    showMessage("registerMsg", "Aguarde 5 segundos", "error");
     registerBtn.classList.remove("loading");
     registerBtn.disabled = false;
     return;
@@ -1318,8 +1189,6 @@ async function register() {
   const p = document.getElementById("newPass").value.trim();
   const e = document.getElementById("newEmail").value.trim();
 
-  const senhaForte = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&]).{8,}$/;
-
   if (!u || !p || !e) {
     showMessage("registerMsg", "Preencha todos os campos", "error");
     registerBtn.classList.remove("loading");
@@ -1327,63 +1196,42 @@ async function register() {
     return;
   }
 
-  if (!senhaForte.test(p)) {
-    showMessage("registerMsg", "Use uma senha forte (8+ caracteres, maiúscula, minúscula, número e símbolo)", "error");
+  try {
+    await apiCall('/register', {
+      method: 'POST',
+      body: { user: u, email: e, pass: p }
+    });
+    
+    lastRegister = now;
+    showMessage("registerMsg", "✅ Conta criada! Redirecionando...", "success");
+    
+    setTimeout(() => {
+      mostrarLogin();
+      registerBtn.classList.remove("loading");
+      registerBtn.disabled = false;
+    }, 1500);
+  } catch (err) {
+    showMessage("registerMsg", err.message, "error");
     registerBtn.classList.remove("loading");
     registerBtn.disabled = false;
-    return;
   }
-
-  let users = getUsers();
-  if (users.find(x => x.user.toLowerCase() === u.toLowerCase())) {
-    showMessage("registerMsg", "Usuário já existe", "error");
-    registerBtn.classList.remove("loading");
-    registerBtn.disabled = false;
-    return;
-  }
-
-  const hashedPass = await sha256(p);
-  
-  users.push({
-    user: u,
-    pass: hashedPass,
-    email: e,
-    role: "user",
-    score: 0,
-    flies: 0,
-    bio: "",
-    avatar: "",
-    createdAt: now,
-    isBanned: false,
-    lastLogin: now
-  });
-  saveUsers(users);
-
-  lastRegister = now;
-  showMessage("registerMsg", "✅ Conta criada com sucesso!", "success");
-  
-  setTimeout(() => {
-    mostrarLogin();
-    registerBtn.classList.remove("loading");
-    registerBtn.disabled = false;
-  }, 1500);
 }
 
 function mostrarCadastro() {
   showMessage("loginMsg", "");
   showMessage("registerMsg", "");
-  loginArea.style.display = "none";
-  cadastroArea.style.display = "block";
+  document.getElementById("loginArea").style.display = "none";
+  document.getElementById("cadastroArea").style.display = "block";
 }
 
 function mostrarLogin() {
   showMessage("loginMsg", "");
   showMessage("registerMsg", "");
-  loginArea.style.display = "block";
-  cadastroArea.style.display = "none";
+  document.getElementById("loginArea").style.display = "block";
+  document.getElementById("cadastroArea").style.display = "none";
 }
 
-/* ===== LOGIN ===== */
+// ===== LOGIN =====
 async function login() {
   const loginBtn = document.getElementById("loginBtn");
   showMessage("loginMsg", "");
@@ -1400,654 +1248,470 @@ async function login() {
     return;
   }
 
+  // Login hardcoded admin (para teste)
   if (u === "Teste231" && p === "Knight_moon14@") {
-    currentUser = u;
-    isAdmin = true;
-    localStorage.setItem("currentSession", JSON.stringify({ user: currentUser, isAdmin: isAdmin }));
-    addAuditLog("Login admin");
+    // Cria conta admin se não existir
+    try {
+      await apiCall('/register', {
+        method: 'POST',
+        body: { user: 'Teste231', email: 'admin@spider.net', pass: 'Knight_moon14@' }
+      });
+    } catch (e) {
+      // Provavelmente já existe, ignora erro
+    }
+  }
+
+  try {
+    const data = await apiCall('/login', {
+      method: 'POST',
+      body: { user: u, pass: p }
+    });
+    
+    authToken = data.token;
+    localStorage.setItem('spiderToken', authToken);
+    currentUser = data.user;
+    
     abrirSistema();
     loginBtn.classList.remove("loading");
     loginBtn.disabled = false;
-    return;
+  } catch (err) {
+    showMessage("loginMsg", err.message, "error");
+    loginBtn.classList.remove("loading");
+    loginBtn.disabled = false;
   }
-
-  let users = getUsers();
-  const hashedPass = await sha256(p);
-  let f = users.find(x => x.user.toLowerCase() === u.toLowerCase() && x.pass === hashedPass);
-
-  if (f) {
-    if (f.isBanned) {
-      showMessage("loginMsg", "🚫 Esta conta foi banida", "error");
-      loginBtn.classList.remove("loading");
-      loginBtn.disabled = false;
-      return;
-    }
-    
-    currentUser = f.user;
-    isAdmin = f.role === "admin" || f.role === "moderator";
-    
-    // Atualizar último login
-    f.lastLogin = Date.now();
-    saveUsers(users);
-    
-    localStorage.setItem("currentSession", JSON.stringify({ user: currentUser, isAdmin: isAdmin }));
-    abrirSistema();
-  } else {
-    showMessage("loginMsg", "Login inválido", "error");
-  }
-
-  loginBtn.classList.remove("loading");
-  loginBtn.disabled = false;
 }
 
-/* ===== SISTEMA ===== */
+// ===== SISTEMA =====
 function abrirSistema() {
-  authBox.style.display = "none";
-  dashboard.style.display = "block";
+  document.getElementById("authBox").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
   
-  const roleBadge = isAdmin ? '<span class="badge">ADMIN</span>' : '';
-  userText.innerHTML = `Usuário: <strong>${sanitizeHTML(currentUser)}</strong> ${roleBadge}`;
+  const isAdmin = currentUser?.role === 'admin';
+  document.getElementById("userText").innerHTML = 
+    `Bem-vindo, <span class="adminUser">${sanitizeHTML(currentUser.user)}</span>` +
+    (isAdmin ? ' <span class="badge">ADMIN</span>' : '');
   
   if (isAdmin) {
-    adminBtn.style.display = "inline-block";
-    adminUpdateStats();
+    document.getElementById("adminBtn").style.display = "inline-block";
   }
   
-  abrirPainel('home');
-  atualizarRanking();
   carregarPerfil();
+  carregarRanking();
+  carregarChat();
 }
 
 function logout() {
-  if (confirm("Tem certeza que deseja sair?")) {
-    addAuditLog("Logout: " + currentUser);
-    localStorage.removeItem("currentSession");
-    currentUser = null;
-    isAdmin = false;
-    location.reload();
+  authToken = null;
+  currentUser = null;
+  localStorage.removeItem('spiderToken');
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("authBox").style.display = "block";
+  document.getElementById("adminBtn").style.display = "none";
+}
+
+// ===== PERFIL =====
+async function carregarPerfil() {
+  try {
+    const user = await apiCall('/profile');
+    
+    document.getElementById("perfilUser").textContent = user.user;
+    document.getElementById("bioInput").value = user.bio || '';
+    
+    const avatarImg = document.getElementById("avatar");
+    if (user.avatar) {
+      avatarImg.src = user.avatar;
+    } else {
+      avatarImg.src = getDefaultAvatar(user.user);
+    }
+    
+    document.getElementById("stats").innerHTML = `
+      🏆 Score: ${user.score || 0} | 🪰 Moscas: ${user.flies || 0}
+    `;
+  } catch (err) {
+    console.error('Erro ao carregar perfil:', err);
   }
 }
 
-function abrirPainel(id) {
+async function salvarPerfil() {
+  const bio = document.getElementById("bioInput").value;
+  
+  try {
+    await apiCall('/profile', {
+      method: 'PUT',
+      body: { bio }
+    });
+    showMessage("profileMsg", "✅ Perfil salvo!", "success");
+  } catch (err) {
+    showMessage("profileMsg", "Erro ao salvar: " + err.message, "error");
+  }
+}
+
+// Upload de avatar (base64)
+document.getElementById("avatarUpload")?.addEventListener("change", async function(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  if (file.size > 500000) {
+    showMessage("profileMsg", "Imagem muito grande (máx 500KB)", "error");
+    return;
+  }
+  
+  const reader = new FileReader();
+  reader.onload = async function(e) {
+    try {
+      await apiCall('/profile', {
+        method: 'PUT',
+        body: { avatar: e.target.result }
+      });
+      document.getElementById("avatar").src = e.target.result;
+      showMessage("profileMsg", "✅ Avatar atualizado!", "success");
+    } catch (err) {
+      showMessage("profileMsg", "Erro ao atualizar avatar", "error");
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+// ===== RANKING =====
+async function carregarRanking() {
+  try {
+    const users = await apiCall('/ranking');
+    const list = document.getElementById("rankingList");
+    
+    list.innerHTML = users.map((u, i) => `
+      <div>
+        <span>#${i + 1} ${sanitizeHTML(u.user)}</span>
+        <span>🏆 ${u.score || 0} | 🪰 ${u.flies || 0}</span>
+      </div>
+    `).join('');
+  } catch (err) {
+    console.error('Erro ao carregar ranking:', err);
+  }
+}
+
+// ===== CHAT =====
+async function carregarChat() {
+  try {
+    const messages = await apiCall('/chat');
+    renderChat(messages);
+  } catch (err) {
+    console.error('Erro ao carregar chat:', err);
+  }
+}
+
+function renderChat(messages) {
+  const chatDiv = document.getElementById("chatMessages");
+  chatDiv.innerHTML = messages.map(msg => {
+    const isOwn = msg.user === currentUser?.user;
+    const isAdmin = msg.role === 'admin';
+    
+    return `
+      <div class="chat-msg ${isOwn ? 'own' : ''} ${isAdmin ? 'admin' : ''}">
+        <div class="chat-msg-header">
+          <span class="chat-msg-user ${isAdmin ? 'adminUser' : ''}">
+            ${sanitizeHTML(msg.user)} ${isAdmin ? '👑' : ''}
+          </span>
+          <span class="chat-msg-time">${new Date(msg.createdAt).toLocaleTimeString()}</span>
+        </div>
+        <div class="chat-msg-content">${sanitizeHTML(msg.content)}</div>
+      </div>
+    `;
+  }).join('');
+  
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+async function sendChat() {
+  const input = document.getElementById("chatInput");
+  const content = input.value.trim();
+  
+  if (!content) return;
+  
+  try {
+    await apiCall('/chat', {
+      method: 'POST',
+      body: { content }
+    });
+    
+    input.value = '';
+    await carregarChat();
+  } catch (err) {
+    showNotification(err.message, 'error');
+  }
+}
+
+function toggleChat() {
+  const panel = document.getElementById("chatPanel");
+  const isHidden = panel.style.display === 'none' || panel.classList.contains('hidden');
+  
+  if (isHidden) {
+    panel.style.display = 'flex';
+    panel.classList.remove('hidden');
+    carregarChat();
+  } else {
+    panel.style.display = 'none';
+    panel.classList.add('hidden');
+  }
+}
+
+// ===== ADMIN =====
+async function abrirPainel(painel) {
   document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
-  document.getElementById(id).style.display = 'block';
+  document.getElementById(painel).style.display = 'block';
   
-  if (id === 'admin' && isAdmin) {
-    adminUpdateStats();
+  if (painel === 'admin') {
+    await carregarAdminStats();
+    adminShowUsers();
   }
 }
 
-/* ===== ADMIN FUNÇÕES ===== */
-function adminUpdateStats() {
-  const users = getUsers();
-  const chat = getChat();
-  
-  const totalFlies = users.reduce((sum, u) => sum + (u.flies || 0), 0);
-  const bannedCount = users.filter(u => u.isBanned).length;
-  
-  document.getElementById('statUsers').textContent = users.length;
-  document.getElementById('statMessages').textContent = chat.length;
-  document.getElementById('statFlies').textContent = totalFlies;
-  document.getElementById('statBanned').textContent = bannedCount;
-}
-
-function adminShowUsers() {
-  document.getElementById('adminUsersSection').style.display = 'block';
-  document.getElementById('adminAnnouncementSection').style.display = 'none';
-  document.getElementById('adminAuditSection').style.display = 'none';
-  adminLoadUsers();
-}
-
-function adminShowAnnouncement() {
-  document.getElementById('adminUsersSection').style.display = 'none';
-  document.getElementById('adminAnnouncementSection').style.display = 'block';
-  document.getElementById('adminAuditSection').style.display = 'none';
-}
-
-function adminShowAudit() {
-  document.getElementById('adminUsersSection').style.display = 'none';
-  document.getElementById('adminAnnouncementSection').style.display = 'none';
-  document.getElementById('adminAuditSection').style.display = 'block';
-  adminLoadAudit();
-}
-
-function adminLoadUsers() {
-  const users = getUsers();
-  const userList = document.getElementById('userList');
-  userList.innerHTML = '';
-  
-  users.forEach((u, index) => {
-    const div = document.createElement('div');
-    div.className = `user-item ${u.isBanned ? 'banned' : ''} ${u.role}`;
+async function carregarAdminStats() {
+  try {
+    const stats = await apiCall('/admin/stats');
+    document.getElementById("statUsers").textContent = stats.users;
+    document.getElementById("statMessages").textContent = stats.messages;
+    document.getElementById("statBanned").textContent = stats.banned;
     
-    const roleIcon = u.role === 'admin' ? '👑' : (u.role === 'moderator' ? '⚡' : '');
-    const roleText = u.isBanned ? '🚫 Banido' : (u.role || 'user');
-    
-    div.innerHTML = `
+    // Calcula moscas totais
+    const users = await apiCall('/admin/users');
+    const totalFlies = users.reduce((sum, u) => sum + (u.flies || 0), 0);
+    document.getElementById("statFlies").textContent = totalFlies;
+  } catch (err) {
+    console.error('Erro ao carregar stats:', err);
+  }
+}
+
+async function adminShowUsers() {
+  document.getElementById("adminUsersSection").style.display = 'block';
+  document.getElementById("adminAnnouncementSection").style.display = 'none';
+  document.getElementById("adminAuditSection").style.display = 'none';
+  
+  try {
+    const users = await apiCall('/admin/users');
+    window.allUsers = users; // Guarda para filtro
+    renderUserList(users);
+  } catch (err) {
+    console.error('Erro ao carregar usuários:', err);
+  }
+}
+
+function renderUserList(users) {
+  const list = document.getElementById("userList");
+  
+  list.innerHTML = users.map(u => `
+    <div class="user-item ${u.isBanned ? 'banned' : ''} ${u.role}">
       <div class="user-info">
-        <img src="${u.avatar || getDefaultAvatar(u.user)}" class="user-item-avatar" alt="avatar">
+        <img src="${u.avatar || getDefaultAvatar(u.user)}" class="user-item-avatar">
         <div>
-          <div class="user-item-name">${roleIcon} ${sanitizeHTML(u.user)}</div>
-          <div class="user-item-role">${roleText} | 🪰 ${u.flies || 0} | ⭐ ${u.score || 0}</div>
+          <div class="user-item-name">${sanitizeHTML(u.user)}</div>
+          <div class="user-item-role">${u.role} ${u.isBanned ? '(BANIDO)' : ''}</div>
         </div>
       </div>
       <div class="user-actions">
-        ${u.isBanned ? 
-          `<button onclick="adminUnbanUser(${index})" class="success">✅ Desbanir</button>` :
-          `<button onclick="adminBanUser(${index})" class="danger">🚫 Banir</button>`
-        }
         ${u.role !== 'admin' ? `
-          <button onclick="adminPromoteUser(${index})" class="secondary">⬆️ Promover</button>
-          <button onclick="adminDemoteUser(${index})" class="secondary">⬇️ Rebaixar</button>
-          <button onclick="adminDeleteUser(${index})" class="danger">🗑️ Deletar</button>
+          <button onclick="banUser('${u._id}', ${!u.isBanned})" class="${u.isBanned ? 'success' : 'danger'}">
+            ${u.isBanned ? 'Desbanir' : 'Banir'}
+          </button>
+          <button onclick="promoteUser('${u._id}', '${u.role === 'user' ? 'moderator' : 'user'}')" class="secondary">
+            ${u.role === 'user' ? 'Promover' : 'Rebaixar'}
+          </button>
         ` : ''}
       </div>
-    `;
-    
-    userList.appendChild(div);
-  });
+    </div>
+  `).join('');
 }
 
 function filterUsers() {
-  const searchTerm = document.getElementById('userSearchInput').value.toLowerCase();
-  const users = getUsers();
-  const userList = document.getElementById('userList');
-  userList.innerHTML = '';
-  
-  users.forEach((u, index) => {
-    if (u.user.toLowerCase().includes(searchTerm)) {
-      const div = document.createElement('div');
-      div.className = `user-item ${u.isBanned ? 'banned' : ''} ${u.role}`;
-      
-      const roleIcon = u.role === 'admin' ? '👑' : (u.role === 'moderator' ? '⚡' : '');
-      const roleText = u.isBanned ? '🚫 Banido' : (u.role || 'user');
-      
-      div.innerHTML = `
-        <div class="user-info">
-          <img src="${u.avatar || getDefaultAvatar(u.user)}" class="user-item-avatar" alt="avatar">
-          <div>
-            <div class="user-item-name">${roleIcon} ${sanitizeHTML(u.user)}</div>
-            <div class="user-item-role">${roleText} | 🪰 ${u.flies || 0} | ⭐ ${u.score || 0}</div>
-          </div>
-        </div>
-        <div class="user-actions">
-          ${u.isBanned ? 
-            `<button onclick="adminUnbanUser(${index})" class="success">✅ Desbanir</button>` :
-            `<button onclick="adminBanUser(${index})" class="danger">🚫 Banir</button>`
-          }
-          ${u.role !== 'admin' ? `
-            <button onclick="adminPromoteUser(${index})" class="secondary">⬆️ Promover</button>
-            <button onclick="adminDemoteUser(${index})" class="secondary">⬇️ Rebaixar</button>
-            <button onclick="adminDeleteUser(${index})" class="danger">🗑️ Deletar</button>
-          ` : ''}
-        </div>
-      `;
-      
-      userList.appendChild(div);
-    }
-  });
+  const search = document.getElementById("userSearchInput").value.toLowerCase();
+  const filtered = window.allUsers.filter(u => 
+    u.user.toLowerCase().includes(search)
+  );
+  renderUserList(filtered);
 }
 
-function adminBanUser(index) {
-  if (!confirm("Tem certeza que deseja banir este usuário?")) return;
-  
-  let users = getUsers();
-  users[index].isBanned = true;
-  saveUsers(users);
-  
-  addAuditLog(`Banir usuário: ${users[index].user}`);
-  showNotification(`Usuário ${users[index].user} banido!`, 'success');
-  adminLoadUsers();
-  adminUpdateStats();
-}
-
-function adminUnbanUser(index) {
-  let users = getUsers();
-  users[index].isBanned = false;
-  saveUsers(users);
-  
-  addAuditLog(`Desbanir usuário: ${users[index].user}`);
-  showNotification(`Usuário ${users[index].user} desbanido!`, 'success');
-  adminLoadUsers();
-  adminUpdateStats();
-}
-
-function adminPromoteUser(index) {
-  let users = getUsers();
-  if (users[index].role === 'moderator') {
-    users[index].role = 'admin';
-  } else {
-    users[index].role = 'moderator';
-  }
-  saveUsers(users);
-  
-  addAuditLog(`Promover usuário: ${users[index].user} para ${users[index].role}`);
-  showNotification(`Usuário promovido para ${users[index].role}!`, 'success');
-  adminLoadUsers();
-}
-
-function adminDemoteUser(index) {
-  let users = getUsers();
-  users[index].role = 'user';
-  saveUsers(users);
-  
-  addAuditLog(`Rebaixar usuário: ${users[index].user}`);
-  showNotification(`Usuário rebaixado para user!`, 'success');
-  adminLoadUsers();
-}
-
-function adminDeleteUser(index) {
-  if (!confirm("⚠️ Tem certeza que deseja DELETAR este usuário permanentemente?")) return;
-  
-  let users = getUsers();
-  const deletedUser = users[index].user;
-  users.splice(index, 1);
-  saveUsers(users);
-  
-  addAuditLog(`Deletar usuário: ${deletedUser}`);
-  showNotification(`Usuário ${deletedUser} deletado!`, 'error');
-  adminLoadUsers();
-  adminUpdateStats();
-}
-
-function sendAnnouncement() {
-  const text = document.getElementById('announcementText').value.trim();
-  if (!text) {
-    showNotification("Digite um anúncio!", 'error');
-    return;
-  }
-  
-  let chat = getChat();
-  chat.push({
-    id: Date.now(),
-    user: 'SISTEMA',
-    msg: text,
-    time: new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' }),
-    role: 'system',
-    isSystem: true
-  });
-  
-  saveChat(chat);
-  document.getElementById('announcementText').value = '';
-  
-  addAuditLog(`Anúncio: ${text}`);
-  showNotification("Anúncio enviado!", 'success');
-  adminUpdateStats();
-  
-  if (document.getElementById('chatPanel').classList.contains('hidden') === false) {
-    loadChat();
+async function banUser(userId, ban) {
+  try {
+    await apiCall(`/admin/ban/${userId}`, {
+      method: 'POST',
+      body: { ban }
+    });
+    showNotification(ban ? 'Usuário banido' : 'Usuário desbanido');
+    adminShowUsers();
+    carregarAdminStats();
+  } catch (err) {
+    showNotification(err.message, 'error');
   }
 }
 
-function adminClearChat() {
-  if (!confirm("⚠️ Tem certeza que deseja limpar TODO o chat?")) return;
-  
-  localStorage.removeItem('chat');
-  addAuditLog("Limpar chat");
-  showNotification("Chat limpo!", 'success');
-  adminUpdateStats();
-  
-  if (document.getElementById('chatPanel').classList.contains('hidden') === false) {
-    loadChat();
+async function promoteUser(userId, role) {
+  try {
+    await apiCall(`/admin/role/${userId}`, {
+      method: 'POST',
+      body: { role }
+    });
+    showNotification('Cargo atualizado');
+    adminShowUsers();
+  } catch (err) {
+    showNotification(err.message, 'error');
   }
 }
 
-function adminLoadAudit() {
-  const audit = JSON.parse(localStorage.getItem('auditLog') || '[]');
-  const auditLog = document.getElementById('auditLog');
-  auditLog.innerHTML = '';
+function adminShowAnnouncement() {
+  document.getElementById("adminUsersSection").style.display = 'none';
+  document.getElementById("adminAnnouncementSection").style.display = 'block';
+  document.getElementById("adminAuditSection").style.display = 'none';
+}
+
+async function sendAnnouncement() {
+  const text = document.getElementById("announcementText").value;
+  if (!text) return;
   
-  if (audit.length === 0) {
-    auditLog.innerHTML = '<div style="text-align:center;color:#666;padding:20px">Nenhum registro</div>';
-    return;
+  try {
+    await apiCall('/chat', {
+      method: 'POST',
+      body: { content: '[📢 ANÚNCIO] ' + text }
+    });
+    showNotification('Anúncio enviado!');
+    document.getElementById("announcementText").value = '';
+  } catch (err) {
+    showNotification(err.message, 'error');
   }
-  
-  audit.forEach(entry => {
-    const div = document.createElement('div');
-    div.className = 'audit-entry';
-    div.innerHTML = `
-      <div>
-        <span class="audit-action">${sanitizeHTML(entry.action)}</span>
-        <small>por ${sanitizeHTML(entry.user)}</small>
+}
+
+function adminShowAudit() {
+  document.getElementById("adminUsersSection").style.display = 'none';
+  document.getElementById("adminAnnouncementSection").style.display = 'none';
+  document.getElementById("adminAuditSection").style.display = 'block';
+  carregarAudit();
+}
+
+async function carregarAudit() {
+  try {
+    const logs = await apiCall('/admin/audit');
+    const logDiv = document.getElementById("auditLog");
+    
+    logDiv.innerHTML = logs.map(log => `
+      <div class="audit-entry">
+        <span class="audit-action">${sanitizeHTML(log.action)}</span>
+        <span>por ${sanitizeHTML(log.user)}</span>
+        <span class="audit-time">${new Date(log.createdAt).toLocaleString()}</span>
       </div>
-      <div class="audit-time">${entry.time}</div>
-    `;
-    auditLog.appendChild(div);
-  });
+    `).join('');
+  } catch (err) {
+    console.error('Erro ao carregar audit:', err);
+  }
 }
 
-/* ===== PERFIL ===== */
-function carregarPerfil() {
-  let users = getUsers();
-  let u = users.find(x => x.user === currentUser);
+async function adminClearChat() {
+  if (!confirm('Tem certeza que deseja limpar todo o chat?')) return;
   
-  if (!u) {
-    console.error("Usuário não encontrado:", currentUser);
-    return;
+  try {
+    await apiCall('/admin/chat', { method: 'DELETE' });
+    showNotification('Chat limpo!');
+    carregarChat();
+    carregarAdminStats();
+  } catch (err) {
+    showNotification(err.message, 'error');
   }
-
-  perfilUser.textContent = sanitizeHTML(u.user);
-  bioInput.value = u.bio || "";
-  avatar.src = u.avatar || getDefaultAvatar(u.user);
-  stats.textContent = `🪰 Moscas: ${u.flies || 0} | ⭐ Pontos: ${u.score || 0} | 📅 Membro desde: ${new Date(u.createdAt).toLocaleDateString('pt-BR')}`;
-  profileMsg.textContent = "";
 }
 
-avatarUpload.onchange = function() {
-  const file = this.files[0];
-  if (!file) return;
-  
-  if (!file.type.startsWith('image/')) {
-    showMessage("profileMsg", "Selecione uma imagem válida", "error");
-    return;
-  }
-  
-  if (file.size > 5 * 1024 * 1024) {
-    showMessage("profileMsg", "Imagem deve ter menos de 5MB", "error");
-    return;
-  }
-
-  const r = new FileReader();
-  r.onload = e => {
-    avatar.src = e.target.result;
-  };
-  r.readAsDataURL(file);
-}
-
-function salvarPerfil() {
-  let users = getUsers();
-  let uIndex = users.findIndex(x => x.user === currentUser);
-  
-  if (uIndex === -1) {
-    showMessage("profileMsg", "Erro ao salvar perfil", "error");
-    return;
-  }
-
-  users[uIndex].bio = bioInput.value;
-  users[uIndex].avatar = avatar.src;
-  saveUsers(users);
-  
-  showMessage("profileMsg", "✅ Perfil salvo!", "success");
-  setTimeout(() => profileMsg.textContent = "", 3000);
-}
-
-/* ===== JOGO ===== */
-const spiderGame = document.getElementById("gameModal");
-const gcanvas = document.getElementById("modalGameCanvas");
-const gctx = gcanvas.getContext("2d");
-
-let player = { x: 200, y: 120 };
-let flies = [];
-let gameScore = 0;
-
+// ===== JOGO =====
 function toggleGame() {
-  spiderGame.style.display = spiderGame.style.display === "block" ? "none" : "block";
-  if (spiderGame.style.display === "block") {
-    flies = [];
+  const modal = document.getElementById("gameModal");
+  const isVisible = modal.style.display === 'block';
+  
+  if (isVisible) {
+    modal.style.display = 'none';
+    stopGame();
+  } else {
+    modal.style.display = 'block';
+    startGame();
   }
 }
 
-gcanvas.addEventListener("mousemove", e => {
-  const r = gcanvas.getBoundingClientRect();
-  player.x = e.clientX - r.left;
-  player.y = e.clientY - r.top;
-});
+let gameInterval;
+let score = 0;
 
-gcanvas.addEventListener("touchmove", e => {
-  e.preventDefault();
-  const r = gcanvas.getBoundingClientRect();
-  const touch = e.touches[0];
-  player.x = touch.clientX - r.left;
-  player.y = touch.clientY - r.top;
-});
-
-function spawnFly() {
-  flies.push({
-    x: Math.random() * 400,
-    y: Math.random() * 220,
-    vx: (Math.random() - 0.5) * 2,
-    vy: (Math.random() - 0.5) * 2
-  });
+function startGame() {
+  const canvas = document.getElementById("modalGameCanvas");
+  const ctx = canvas.getContext("2d");
+  
+  let spider = { x: 200, y: 110, size: 20 };
+  let flies = [];
+  score = 0;
+  
+  function spawnFly() {
+    flies.push({
+      x: Math.random() * (canvas.width - 20) + 10,
+      y: Math.random() * (canvas.height - 20) + 10,
+      size: 10
+    });
+  }
+  
+  for (let i = 0; i < 5; i++) spawnFly();
+  
+  canvas.onmousemove = (e) => {
+    const rect = canvas.getBoundingClientRect();
+    spider.x = e.clientX - rect.left;
+    spider.y = e.clientY - rect.top;
+  };
+  
+  function gameLoop() {
+    ctx.fillStyle = '#000';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    ctx.fillStyle = '#00ffc8';
+    ctx.beginPath();
+    ctx.arc(spider.x, spider.y, spider.size, 0, Math.PI * 2);
+    ctx.fill();
+    
+    ctx.fillStyle = '#ff4444';
+    flies.forEach((fly, index) => {
+      ctx.beginPath();
+      ctx.arc(fly.x, fly.y, fly.size, 0, Math.PI * 2);
+      ctx.fill();
+      
+      const dist = Math.hypot(spider.x - fly.x, spider.y - fly.y);
+      if (dist < spider.size + fly.size) {
+        flies.splice(index, 1);
+        score += 10;
+        spawnFly();
+        showScorePopup(10);
+      }
+    });
+    
+    if (flies.length < 3) spawnFly();
+  }
+  
+  gameInterval = setInterval(gameLoop, 1000 / 30);
 }
 
-function showScorePopup(score) {
+function stopGame() {
+  clearInterval(gameInterval);
+  
+  if (score > 0 && currentUser) {
+    apiCall('/score', {
+      method: 'POST',
+      body: { points: score }
+    }).then(() => {
+      carregarPerfil();
+      carregarRanking();
+    }).catch(console.error);
+  }
+}
+
+function showScorePopup(points) {
   const popup = document.createElement('div');
   popup.className = 'score-popup';
-  popup.textContent = `+${score}`;
+  popup.textContent = `+${points}`;
   document.body.appendChild(popup);
   setTimeout(() => popup.remove(), 1000);
 }
 
-function gameLoop() {
-  gctx.clearRect(0, 0, 400, 220);
-
-  gctx.fillStyle = "#00ffc8";
-  gctx.beginPath();
-  gctx.arc(player.x, player.y, 12, 0, Math.PI * 2);
-  gctx.fill();
-  gctx.shadowColor = "#00ffc8";
-  gctx.shadowBlur = 15;
-  gctx.fill();
-  gctx.shadowBlur = 0;
-
-  flies.forEach((f, i) => {
-    f.x += f.vx;
-    f.y += f.vy;
-    
-    if (f.x < 0 || f.x > 400) f.vx *= -1;
-    if (f.y < 0 || f.y > 220) f.vy *= -1;
-    
-    gctx.fillStyle = "#00ff88";
-    gctx.shadowColor = "#00ff88";
-    gctx.shadowBlur = 10;
-    gctx.beginPath();
-    gctx.arc(f.x, f.y, 5, 0, Math.PI * 2);
-    gctx.fill();
-    gctx.shadowBlur = 0;
-
-    if (Math.hypot(f.x - player.x, f.y - player.y) < 15) {
-      flies.splice(i, 1);
-      salvarMosca();
-      showScorePopup(10);
-    }
-  });
-}
-
-setInterval(() => {
-  if (spiderGame.style.display === "block") {
-    if (Math.random() < 0.3) spawnFly();
-    gameLoop();
-  }
-}, 100);
-
-function salvarMosca() {
-  let users = getUsers();
-  let uIndex = users.findIndex(x => x.user === currentUser);
-  
-  if (uIndex === -1) return;
-  
-  users[uIndex].flies = (users[uIndex].flies || 0) + 1;
-  users[uIndex].score = (users[uIndex].score || 0) + 10;
-  saveUsers(users);
-  atualizarRanking();
-  carregarPerfil();
-  
-  if (isAdmin) {
-    adminUpdateStats();
-  }
-}
-
-/* ===== RANKING ===== */
-function atualizarRanking() {
-  let users = getUsers();
-  users.sort((a, b) => (b.score || 0) - (a.score || 0));
-
-  let html = "";
-  users.forEach((u, i) => {
-    const roleClass = u.role === "moderator" ? "moderatorUser" : (u.role === "admin" ? "adminUser" : "");
-    const roleIcon = u.role === "admin" ? "👑" : (u.role === "moderator" ? "⚡" : "");
-    const bannedText = u.isBanned ? " 🚫" : "";
-    html += `<div>
-      <span><strong>${i + 1}.</strong> ${roleIcon} <span class="${roleClass}">${sanitizeHTML(u.user)}${bannedText}</span></span>
-      <strong>${u.score || 0}</strong>
-    </div>`;
-  });
-
-  document.getElementById("rankingList").innerHTML = html;
-}
-
-/* ===== CHAT EXPANDIDO ===== */
-function toggleChat() {
-  const chatPanel = document.getElementById('chatPanel');
-  chatPanel.classList.toggle('hidden');
-  
-  if (!chatPanel.classList.contains('hidden')) {
-    loadChat();
-    chatLoadOnline();
-    document.getElementById('chatInput').focus();
-  }
-}
-
-function chatShowSearch() {
-  const searchBox = document.getElementById('chatSearchBox');
-  searchBox.style.display = searchBox.style.display === 'none' ? 'block' : 'none';
-}
-
-function chatShowOnline() {
-  const onlineUsers = document.getElementById('onlineUsers');
-  onlineUsers.style.display = onlineUsers.style.display === 'none' ? 'flex' : 'none';
-  
-  if (onlineUsers.style.display === 'flex') {
-    chatLoadOnline();
-  }
-}
-
-function chatLoadOnline() {
-  const users = getUsers();
-  const onlineDiv = document.getElementById('onlineUsers');
-  onlineDiv.innerHTML = '';
-  
-  // Mostrar todos os usuários como "online" (simulação)
-  users.slice(0, 10).forEach(u => {
-    if (u.isBanned) return;
-    
-    const div = document.createElement('div');
-    div.className = 'online-user';
-    div.innerHTML = `
-      <div class="online-user-status"></div>
-      <img src="${u.avatar || getDefaultAvatar(u.user)}" class="online-user-avatar" alt="${u.user}">
-      <span>${sanitizeHTML(u.user)}</span>
-    `;
-    onlineDiv.appendChild(div);
-  });
-}
-
-function searchMessages() {
-  const searchTerm = document.getElementById('chatSearchInput').value.toLowerCase();
-  let chat = getChat();
-  
-  const filtered = chat.filter(m => 
-    m.msg.toLowerCase().includes(searchTerm) || 
-    m.user.toLowerCase().includes(searchTerm)
-  );
-  
-  displayChatMessages(filtered);
-}
-
-function sendChat() {
-  const t = chatInput.value.trim();
-  if (!t) return;
-
-  let chat = getChat();
-  const timestamp = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-  
-  let users = getUsers();
-  let u = users.find(x => x.user === currentUser);
-  const role = u ? (u.role || 'user') : 'user';
-
-  chat.push({
-    id: Date.now(),
-    user: currentUser,
-    msg: t,
-    time: timestamp,
-    role: role
-  });
-  
-  if (chat.length > 100) {
-    chat = chat.slice(-100);
-  }
-  
-  saveChat(chat);
-  chatInput.value = "";
-  loadChat();
-  
-  if (isAdmin) {
-    adminUpdateStats();
-  }
-}
-
-function deleteMessage(msgId) {
-  if (!confirm("Deletar esta mensagem?")) return;
-  
-  let chat = getChat();
-  chat = chat.filter(m => m.id !== msgId);
-  saveChat(chat);
-  loadChat();
-  
-  if (isAdmin) {
-    adminUpdateStats();
-  }
-}
-
-function loadChat() {
-  let chat = getChat();
-  displayChatMessages(chat);
-}
-
-function displayChatMessages(messages) {
-  const chatMessages = document.getElementById('chatMessages');
-  chatMessages.innerHTML = "";
-
-  if (messages.length === 0) {
-    chatMessages.innerHTML = '<div style="text-align:center;color:#666;padding:20px">💬 Nenhuma mensagem</div>';
-    return;
-  }
-
-  messages.slice(-50).forEach(m => {
-    const d = document.createElement("div");
-    const isOwn = m.user === currentUser;
-    const isSystem = m.isSystem || m.user === 'SISTEMA';
-    
-    let roleClass = '';
-    let roleBadge = '';
-    
-    if (!isSystem) {
-      roleClass = m.role === 'admin' ? 'admin' : (m.role === 'moderator' ? 'moderator' : '');
-      roleBadge = m.role === 'admin' ? '<span class="chat-msg-role">👑</span>' : (m.role === 'moderator' ? '<span class="chat-msg-role">⚡</span>' : '');
-    }
-    
-    d.className = `chat-msg ${isOwn ? 'own' : ''} ${isSystem ? 'system' : ''} ${roleClass}`;
-    d.innerHTML = `
-      ${!isSystem && (isOwn || isAdmin) ? `<div class="chat-msg-actions"><button class="delete-btn" onclick="deleteMessage(${m.id})">🗑️</button></div>` : ''}
-      <div class="chat-msg-header">
-        <span class="chat-msg-user">${isSystem ? '📢 SISTEMA' : roleBadge + sanitizeHTML(m.user)}</span>
-        <span class="chat-msg-time">${m.time}</span>
-      </div>
-      <div class="chat-msg-content">${sanitizeHTML(m.msg)}</div>
-    `;
-    chatMessages.appendChild(d);
-  });
-
-  chatMessages.scrollTop = chatMessages.scrollHeight;
-}
-
-// Event listeners
-document.getElementById('loginPass').addEventListener('keypress', function(e) {
-  if (e.key === 'Enter') login();
+// ===== INICIALIZAÇÃO =====
+document.addEventListener('DOMContentLoaded', () => {
+  checkSession();
 });
-
-// Inicialização
-checkSession();
 </script>
 </body>
 </html>
