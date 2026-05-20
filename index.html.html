@@ -1,0 +1,2215 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Spider Network - Admin & Chat Pro</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  
+  body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: #050505;
+    color: white;
+    overflow: hidden;
+    height: 100vh;
+  }
+
+  /* ===== MATRIX BACKGROUND ===== */
+  #matrix {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* ===== SPIDER ===== */
+  #thread {
+    position: absolute;
+    top: 0;
+    width: 2px;
+    background: linear-gradient(to bottom, #aaa, transparent);
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  #spider {
+    position: absolute;
+    width: 70px;
+    height: 70px;
+    z-index: 5;
+    pointer-events: none;
+    transition: transform 0.1s ease-out;
+  }
+
+  .spider-body {
+    position: absolute;
+    width: 36px;
+    height: 36px;
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    border-radius: 50%;
+    left: 17px;
+    top: 28px;
+    border: 2px solid #333;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+
+  .spider-head {
+    position: absolute;
+    width: 20px;
+    height: 20px;
+    background: linear-gradient(145deg, #1a1a1a, #0a0a0a);
+    border-radius: 50%;
+    left: 25px;
+    top: 12px;
+    border: 2px solid #333;
+    box-shadow: 0 0 10px rgba(0,0,0,0.5);
+  }
+
+  .eye {
+    position: absolute;
+    width: 5px;
+    height: 5px;
+    background: red;
+    border-radius: 50%;
+    box-shadow: 0 0 8px red, 0 0 15px rgba(255,0,0,0.5);
+    animation: eyeGlow 2s ease-in-out infinite;
+  }
+
+  @keyframes eyeGlow {
+    0%, 100% { box-shadow: 0 0 8px red, 0 0 15px rgba(255,0,0,0.5); }
+    50% { box-shadow: 0 0 15px red, 0 0 25px rgba(255,0,0,0.8); }
+  }
+
+  .eye.left { left: 4px; top: 6px; }
+  .eye.right { right: 4px; top: 6px; }
+
+  /* ===== CONTAINER ===== */
+  .container {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(17, 17, 17, 0.98);
+    padding: 35px;
+    border-radius: 20px;
+    width: 380px;
+    z-index: 10;
+    max-width: 90vw;
+    box-shadow: 0 0 40px rgba(0, 255, 200, 0.2);
+    border: 1px solid #333;
+  }
+
+  /* ===== FORM ELEMENTS ===== */
+  input, textarea, select {
+    width: 100%;
+    padding: 12px;
+    margin: 10px 0;
+    border: 1px solid #333;
+    border-radius: 8px;
+    background: #1a1a1a;
+    color: white;
+    font-size: 14px;
+    transition: all 0.3s;
+  }
+
+  input:focus, textarea:focus, select:focus {
+    outline: none;
+    border-color: #00ffc8;
+    box-shadow: 0 0 10px rgba(0, 255, 200, 0.3);
+  }
+
+  button {
+    padding: 12px 18px;
+    background: linear-gradient(135deg, #00ffc8, #00e0b0);
+    border: none;
+    border-radius: 10px;
+    cursor: pointer;
+    font-weight: bold;
+    transition: all 0.3s;
+    font-size: 14px;
+    color: #050505;
+    text-shadow: none;
+  }
+
+  button:hover {
+    background: linear-gradient(135deg, #00e0b0, #00c9a0);
+    transform: scale(1.02);
+    box-shadow: 0 5px 20px rgba(0, 255, 200, 0.4);
+  }
+
+  button:active {
+    transform: scale(0.98);
+  }
+
+  button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+  }
+
+  button.danger {
+    background: linear-gradient(135deg, #ff4444, #cc0000);
+    color: white;
+  }
+
+  button.danger:hover {
+    background: linear-gradient(135deg, #ff6666, #ff0000);
+    box-shadow: 0 5px 20px rgba(255, 0, 0, 0.4);
+  }
+
+  button.success {
+    background: linear-gradient(135deg, #00ff88, #00cc66);
+    color: #050505;
+  }
+
+  button.success:hover {
+    background: linear-gradient(135deg, #00ff99, #00ff77);
+    box-shadow: 0 5px 20px rgba(0, 255, 136, 0.4);
+  }
+
+  button.secondary {
+    background: linear-gradient(135deg, #444, #333);
+    color: white;
+  }
+
+  button.secondary:hover {
+    background: linear-gradient(135deg, #555, #444);
+  }
+
+  /* ===== DASHBOARD ===== */
+  #dashboard {
+    display: none;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+    z-index: 10;
+    max-width: 90vw;
+    height: 85vh;
+    overflow: hidden;
+    background: rgba(17, 17, 17, 0.98);
+    border-radius: 20px;
+    padding: 20px;
+    border: 1px solid #333;
+    box-shadow: 0 0 40px rgba(0, 255, 200, 0.2);
+  }
+
+  #menu {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    justify-content: center;
+    margin-bottom: 15px;
+  }
+
+  #menu button {
+    flex: 1;
+    min-width: 100px;
+    padding: 10px 15px;
+    font-size: 13px;
+  }
+
+  .panel {
+    display: none;
+    height: calc(100% - 120px);
+    overflow-y: auto;
+    padding: 15px;
+    background: #0a0a0a;
+    border-radius: 15px;
+    scrollbar-width: thin;
+    scrollbar-color: #00ffc8 #222;
+  }
+
+  .panel::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .panel::-webkit-scrollbar-track {
+    background: #222;
+    border-radius: 4px;
+  }
+
+  .panel::-webkit-scrollbar-thumb {
+    background: #00ffc8;
+    border-radius: 4px;
+  }
+
+  /* ===== AVATAR ===== */
+  #avatar {
+    width: 90px;
+    height: 90px;
+    border-radius: 50%;
+    object-fit: cover;
+    border: 4px solid #00ffc8;
+    background: #333;
+    display: block;
+    margin: 15px auto;
+    box-shadow: 0 0 20px rgba(0, 255, 200, 0.3);
+  }
+
+  /* ===== SCORE POPUP ===== */
+  .score-popup {
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    color: #00ffc8;
+    font-size: 32px;
+    font-weight: bold;
+    pointer-events: none;
+    z-index: 100;
+    animation: scoreFade 1s ease-out forwards;
+    text-shadow: 0 0 20px rgba(0, 255, 200, 0.8);
+  }
+
+  @keyframes scoreFade {
+    0% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+    100% { opacity: 0; transform: translate(-50%, -120%) scale(2); }
+  }
+
+  /* ===== CHAT EXPANDIDO ===== */
+  #chatPanel {
+    display: none;
+    position: fixed;
+    right: 20px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 450px;
+    height: 70vh;
+    background: rgba(17, 17, 17, 0.98);
+    border: 2px solid #00ffc8;
+    border-radius: 20px;
+    padding: 20px;
+    z-index: 25;
+    box-shadow: 0 0 50px rgba(0, 255, 200, 0.3);
+    flex-direction: column;
+  }
+
+  #chatPanel.hidden {
+    display: none !important;
+  }
+
+  .chat-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 15px;
+    padding-bottom: 10px;
+    border-bottom: 1px solid #333;
+  }
+
+  .chat-header h3 {
+    color: #00ffc8;
+    font-size: 18px;
+    margin: 0;
+  }
+
+  .chat-controls {
+    display: flex;
+    gap: 8px;
+  }
+
+  .chat-controls button {
+    padding: 6px 10px;
+    font-size: 12px;
+    min-width: auto;
+  }
+
+  #chatMessages {
+    flex: 1;
+    overflow-y: auto;
+    background: #000;
+    padding: 15px;
+    border-radius: 10px;
+    margin-bottom: 15px;
+    scrollbar-width: thin;
+    scrollbar-color: #00ffc8 #222;
+  }
+
+  #chatMessages::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  #chatMessages::-webkit-scrollbar-track {
+    background: #222;
+    border-radius: 3px;
+  }
+
+  #chatMessages::-webkit-scrollbar-thumb {
+    background: #00ffc8;
+    border-radius: 3px;
+  }
+
+  .chat-msg {
+    margin: 10px 0;
+    padding: 12px;
+    border-radius: 10px;
+    background: #111;
+    word-break: break-word;
+    position: relative;
+    animation: msgSlide 0.3s ease-out;
+  }
+
+  @keyframes msgSlide {
+    from { opacity: 0; transform: translateX(-20px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .chat-msg.own {
+    background: linear-gradient(135deg, rgba(0, 255, 200, 0.15), rgba(0, 200, 150, 0.1));
+    border-left: 4px solid #00ffc8;
+  }
+
+  .chat-msg.system {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.15), rgba(255, 200, 0, 0.1));
+    border-left: 4px solid #ffd700;
+    text-align: center;
+  }
+
+  .chat-msg.admin {
+    border-left: 4px solid #ffd700;
+    background: rgba(255, 215, 0, 0.05);
+  }
+
+  .chat-msg.moderator {
+    border-left: 4px solid #00e0b0;
+    background: rgba(0, 224, 176, 0.05);
+  }
+
+  .chat-msg-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 5px;
+  }
+
+  .chat-msg-user {
+    font-weight: bold;
+    color: #00ffc8;
+  }
+
+  .chat-msg-time {
+    font-size: 11px;
+    color: #666;
+  }
+
+  .chat-msg-content {
+    font-size: 14px;
+    line-height: 1.4;
+    color: #ddd;
+  }
+
+  .chat-input-area {
+    display: flex;
+    gap: 10px;
+  }
+
+  #chatInput {
+    flex: 1;
+    margin: 0;
+  }
+
+  /* ===== ADMIN PANEL ===== */
+  .admin-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+    gap: 15px;
+    margin-bottom: 20px;
+  }
+
+  .stat-card {
+    background: #111;
+    padding: 15px;
+    border-radius: 10px;
+    border: 1px solid #333;
+    text-align: center;
+  }
+
+  .stat-card h4 {
+    color: #00ffc8;
+    margin-bottom: 5px;
+    font-size: 12px;
+  }
+
+  .stat-card .value {
+    font-size: 24px;
+    font-weight: bold;
+    color: white;
+  }
+
+  .admin-tools {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+  }
+
+  .admin-tools button {
+    flex: 1;
+    min-width: 120px;
+  }
+
+  .user-search {
+    margin-bottom: 15px;
+  }
+
+  .user-search input {
+    margin: 0;
+  }
+
+  .user-list {
+    max-height: 400px;
+    overflow-y: auto;
+  }
+
+  .user-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: #111;
+    border-radius: 8px;
+    margin-bottom: 8px;
+    border-left: 3px solid transparent;
+  }
+
+  .user-item.banned {
+    border-left-color: #ff4444;
+    opacity: 0.6;
+  }
+
+  .user-item.admin {
+    border-left-color: #ffd700;
+  }
+
+  .user-item.moderator {
+    border-left-color: #00ffc8;
+  }
+
+  .user-info {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .user-item-avatar {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    object-fit: cover;
+  }
+
+  .user-item-name {
+    font-weight: bold;
+  }
+
+  .user-item-role {
+    font-size: 11px;
+    color: #666;
+  }
+
+  .user-actions {
+    display: flex;
+    gap: 5px;
+  }
+
+  .user-actions button {
+    padding: 6px 10px;
+    font-size: 11px;
+    min-width: auto;
+  }
+
+  .announcement-box {
+    background: linear-gradient(135deg, rgba(255, 215, 0, 0.1), rgba(255, 200, 0, 0.05));
+    border: 2px solid #ffd700;
+    border-radius: 10px;
+    padding: 15px;
+    margin-bottom: 20px;
+  }
+
+  .announcement-box h3 {
+    color: #ffd700;
+    margin-bottom: 10px;
+  }
+
+  .audit-log {
+    max-height: 300px;
+    overflow-y: auto;
+    background: #111;
+    padding: 10px;
+    border-radius: 8px;
+    font-size: 12px;
+  }
+
+  .audit-entry {
+    padding: 8px;
+    border-bottom: 1px solid #222;
+    display: flex;
+    justify-content: space-between;
+  }
+
+  .audit-entry:last-child {
+    border-bottom: none;
+  }
+
+  .audit-time {
+    color: #666;
+    font-size: 11px;
+  }
+
+  .audit-action {
+    color: #00ffc8;
+  }
+
+  /* ===== MESSAGES ===== */
+  .msgBox {
+    font-size: 13px;
+    margin: 8px 0;
+    min-height: 20px;
+    padding: 10px;
+    border-radius: 8px;
+    animation: msgFade 0.3s ease-out;
+  }
+
+  @keyframes msgFade {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+
+  .msgBox.success {
+    background: rgba(0, 255, 136, 0.1);
+    color: #00ff88;
+    border: 1px solid #00ff88;
+  }
+
+  .msgBox.error {
+    background: rgba(255, 68, 68, 0.1);
+    color: #ff4444;
+    border: 1px solid #ff4444;
+  }
+
+  .msgBox.warning {
+    background: rgba(255, 200, 0, 0.1);
+    color: #ffcc00;
+    border: 1px solid #ffcc00;
+  }
+
+  /* ===== HEADINGS ===== */
+  h1 {
+    margin: 0 0 15px;
+    color: #00ffc8;
+    text-shadow: 0 0 20px rgba(0, 255, 200, 0.5);
+    font-size: 28px;
+  }
+
+  h2 {
+    color: #00ffc8;
+    margin: 15px 0 10px;
+    font-size: 18px;
+  }
+
+  h3 {
+    margin: 15px 0;
+    color: #00ffc8;
+  }
+
+  /* ===== BADGES ===== */
+  .badge {
+    color: #ffd700;
+    font-weight: bold;
+    font-size: 11px;
+    padding: 3px 8px;
+    background: rgba(255, 215, 0, 0.2);
+    border-radius: 6px;
+    display: inline-block;
+    margin-left: 5px;
+  }
+
+  .adminUser {
+    color: #ffd700;
+    font-weight: bold;
+  }
+
+  /* ===== PASSWORD STRENGTH ===== */
+  #forcaSenha {
+    font-size: 12px;
+    margin: 5px 0;
+    padding: 8px;
+    border-radius: 6px;
+    background: #1a1a1a;
+  }
+
+  #forcaSenha.weak {
+    color: #ff4444;
+    border-left: 3px solid #ff4444;
+  }
+
+  #forcaSenha.medium {
+    color: #ffa500;
+    border-left: 3px solid #ffa500;
+  }
+
+  #forcaSenha.strong {
+    color: #00ff88;
+    border-left: 3px solid #00ff88;
+  }
+
+  /* ===== PASS BOX ===== */
+  .passBox {
+    position: relative;
+  }
+
+  .eyeBtn {
+    position: absolute;
+    right: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    cursor: pointer;
+    font-size: 20px;
+    user-select: none;
+    color: #00ffc8;
+  }
+
+  /* ===== RANKING ===== */
+  #rankingList {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  #rankingList > div {
+    padding: 12px;
+    background: #111;
+    border-radius: 10px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: all 0.2s;
+  }
+
+  #rankingList > div:hover {
+    background: #1a1a1a;
+    transform: translateX(5px);
+  }
+
+  /* ===== GAME MODAL ===== */
+  #gameModal {
+    display: none;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: #111;
+    border: 2px solid #00ffc8;
+    border-radius: 20px;
+    padding: 20px;
+    z-index: 50;
+    box-shadow: 0 0 50px rgba(0, 255, 200, 0.4);
+  }
+
+  #gameModal button {
+    float: right;
+    cursor: pointer;
+    background: transparent;
+    border: none;
+    color: #00ffc8;
+    font-size: 24px;
+    padding: 0 10px;
+    line-height: 1;
+  }
+
+  #gameModal button:hover {
+    color: #ff4444;
+    transform: scale(1.2);
+  }
+
+  /* ===== RESPONSIVE ===== */
+  @media(max-width: 600px) {
+    #dashboard, .container {
+      width: 95vw !important;
+      height: auto !important;
+      max-height: 90vh !important;
+      overflow-y: auto;
+      padding: 20px !important;
+    }
+
+    .panel {
+      max-height: 50vh !important;
+      font-size: 14px;
+    }
+
+    #chatPanel {
+      width: 95vw !important;
+      height: 60vh !important;
+      right: 2.5vw !important;
+      top: 50% !important;
+      transform: translateY(-50%) !important;
+      left: 2.5vw !important;
+    }
+
+    #spider, #thread {
+      display: none;
+    }
+
+    button {
+      padding: 10px 14px;
+      font-size: 13px;
+    }
+
+    input, textarea, select {
+      font-size: 16px;
+    }
+
+    .admin-stats {
+      grid-template-columns: 1fr;
+    }
+
+    .user-item {
+      flex-direction: column;
+      gap: 10px;
+      text-align: center;
+    }
+
+    .user-actions {
+      justify-content: center;
+    }
+  }
+
+  /* ===== LOADING ===== */
+  .loading {
+    opacity: 0.6;
+    pointer-events: none;
+    position: relative;
+  }
+
+  .loading::after {
+    content: "...";
+    animation: loading 1s infinite;
+    position: absolute;
+    right: 15px;
+    top: 50%;
+    transform: translateY(-50%);
+  }
+
+  @keyframes loading {
+    0%, 100% { content: "."; }
+    33% { content: ".."; }
+    66% { content: "..."; }
+  }
+
+  /* ===== NOTIFICATION ===== */
+  .notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 10px;
+    background: #111;
+    border: 2px solid #00ffc8;
+    z-index: 100;
+    animation: notifSlide 0.5s ease-out;
+    max-width: 300px;
+  }
+
+  @keyframes notifSlide {
+    from { opacity: 0; transform: translateX(100px); }
+    to { opacity: 1; transform: translateX(0); }
+  }
+
+  .notification.success {
+    border-color: #00ff88;
+  }
+
+  .notification.error {
+    border-color: #ff4444;
+  }
+
+  /* ===== FORUM ===== */
+  .forum-category-card {
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 12px;
+    padding: 15px 18px;
+    cursor: pointer;
+    transition: all 0.2s;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+  }
+  .forum-category-card:hover {
+    border-color: #00ffc8;
+    background: #1a1a1a;
+    transform: translateX(4px);
+  }
+  .forum-category-icon { font-size: 28px; }
+  .forum-category-info { flex: 1; }
+  .forum-category-name { font-weight: bold; font-size: 15px; color: #fff; margin-bottom: 3px; }
+  .forum-category-desc { font-size: 12px; color: #666; }
+  .forum-category-count { font-size: 12px; color: #00ffc8; font-weight: bold; }
+
+  .forum-topic-item {
+    background: #111;
+    border: 1px solid #333;
+    border-radius: 10px;
+    padding: 12px 15px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .forum-topic-item:hover { border-color: #00ffc8; background: #1a1a1a; }
+  .forum-topic-item.pinned { border-left: 3px solid #ffd700; }
+  .forum-topic-item.locked { opacity: 0.7; }
+  .forum-topic-header { display: flex; justify-content: space-between; align-items: flex-start; gap:10px; }
+  .forum-topic-title { font-weight: bold; font-size: 14px; color: #fff; flex:1; }
+  .forum-topic-badges { display: flex; gap: 5px; flex-shrink:0; }
+  .forum-badge { font-size: 10px; padding: 2px 6px; border-radius: 4px; font-weight: bold; }
+  .forum-badge.pin { background: rgba(255,215,0,0.2); color: #ffd700; }
+  .forum-badge.lock { background: rgba(255,68,68,0.2); color: #ff4444; }
+  .forum-topic-meta { font-size: 11px; color: #666; margin-top: 5px; display:flex; gap:12px; flex-wrap:wrap; }
+  .forum-topic-meta span { color: #888; }
+
+  .forum-reply {
+    background: #111;
+    border: 1px solid #222;
+    border-radius: 10px;
+    padding: 12px 15px;
+  }
+  .forum-reply-header { display: flex; justify-content: space-between; margin-bottom: 8px; }
+  .forum-reply-author { font-weight: bold; font-size: 13px; color: #00ffc8; }
+  .forum-reply-author.admin { color: #ffd700; }
+  .forum-reply-author.moderator { color: #00e0b0; }
+  .forum-reply-time { font-size: 11px; color: #666; }
+  .forum-reply-content { font-size: 13px; color: #ddd; line-height: 1.5; white-space: pre-wrap; }
+  .forum-reply-actions { margin-top: 8px; display: flex; gap: 6px; }
+
+  .forum-topic-body-content {
+    font-size: 14px;
+    color: #ddd;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    margin-bottom: 10px;
+  }
+  .forum-topic-body-meta {
+    font-size: 12px;
+    color: #666;
+    border-top: 1px solid #222;
+    padding-top: 10px;
+    display: flex;
+    gap: 15px;
+    flex-wrap: wrap;
+    align-items: center;
+  }
+  .forum-mod-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+
+</style>
+</head>
+<body>
+
+<canvas id="matrix"></canvas>
+
+<div id="thread"></div>
+<div id="spider">
+  <div class="spider-body"></div>
+  <div class="spider-head">
+    <div class="eye left"></div>
+    <div class="eye right"></div>
+  </div>
+</div>
+
+<!-- LOGIN / CADASTRO -->
+<div class="container" id="authBox">
+
+<div id="loginArea">
+<h3>🕷 Login</h3>
+<input id="loginUser" placeholder="Email" autocomplete="username" autocapitalize="none">
+<div class="passBox">
+<input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password">
+<span class="eyeBtn" onclick="toggleSenha('loginPass')">👁</span>
+</div>
+<button id="loginBtn" onclick="login()">Entrar</button>
+
+<div class="msgBox" id="loginMsg"></div>
+
+<p style="font-size:12px;color:#666;margin-top:15px">Não tem conta?</p>
+<button onclick="mostrarCadastro()" class="secondary" style="font-size:12px;padding:8px 12px">Criar conta</button>
+</div>
+
+<div id="cadastroArea" style="display:none">
+<h3>🕷 Criar conta</h3>
+<input id="newUser" placeholder="Usuário" autocomplete="username" autocapitalize="none">
+<input id="newEmail" placeholder="Email" autocomplete="email" type="email">
+<div class="passBox">
+<input id="newPass" type="password" placeholder="Senha forte" autocomplete="new-password">
+<span class="eyeBtn" onclick="toggleSenha('newPass')">👁</span>
+</div>
+<div id="forcaSenha"></div>
+<button id="registerBtn" onclick="register()">Cadastrar</button>
+<button onclick="mostrarLogin()" class="secondary">Voltar</button>
+
+<div class="msgBox" id="registerMsg"></div>
+</div>
+
+</div>
+
+<!-- DASHBOARD -->
+<div id="dashboard">
+<h1>🕷 Spider Network</h1>
+<p id="userText" style="margin-bottom:15px;font-size:16px"></p>
+
+<div id="menu">
+<button onclick="abrirPainel('home')">🏠 Home</button>
+<button onclick="abrirPainel('perfil')">👤 Perfil</button>
+<button onclick="abrirPainel('forum')">📋 Fórum</button>
+<button onclick="abrirPainel('ranking')">🏆 Ranking</button>
+<button id="adminBtn" style="display:none" onclick="abrirPainel('admin')">⚙️ Admin</button>
+<button onclick="toggleChat()" class="success">💬 Chat</button>
+</div>
+
+<div id="home" class="panel">
+<h2>🎮 Mini Jogo</h2>
+<button onclick="toggleGame()">🕷 Capturar Moscas</button>
+<div id="gameModal">
+  <button onclick="toggleGame()">✖️</button>
+  <canvas id="modalGameCanvas" width="400" height="220" style="background:#000;display:block;border-radius:10px"></canvas>
+  <p style="text-align:center;font-size:12px;color:#666;margin:15px 0 0 0">Mova o mouse para capturar as moscas!</p>
+</div>
+</div>
+
+<div id="perfil" class="panel">
+<h2>👤 Meu Perfil</h2>
+<img id="avatar" alt="Avatar">
+<input type="file" id="avatarUpload" accept="image/*" style="display:none">
+<button onclick="document.getElementById('avatarUpload').click()" class="secondary" style="font-size:12px;padding:8px 12px">📷 Trocar avatar</button>
+<p style="margin:15px 0">Usuário: <strong id="perfilUser"></strong></p>
+<textarea id="bioInput" placeholder="Sua bio..." rows="4"></textarea>
+<button onclick="salvarPerfil()" class="success">💾 Salvar</button>
+<p id="stats" style="margin-top:15px;font-size:14px"></p>
+<div class="msgBox" id="profileMsg"></div>
+</div>
+
+
+<div id="forum" class="panel">
+<div id="forumView-categories">
+  <h2>📋 Fórum</h2>
+  <div id="forumCategoryList" style="display:flex;flex-direction:column;gap:12px;margin-top:10px"></div>
+</div>
+
+<div id="forumView-topics" style="display:none">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:15px">
+    <button onclick="forumShowCategories()" class="secondary" style="padding:8px 12px;font-size:12px">← Voltar</button>
+    <h2 id="forumCatTitle" style="margin:0"></h2>
+  </div>
+  <button onclick="forumShowNewTopic()" class="success" style="margin-bottom:15px">✏️ Novo Tópico</button>
+  <div id="forumTopicList" style="display:flex;flex-direction:column;gap:8px"></div>
+  <div id="forumTopicPagination" style="display:flex;gap:8px;justify-content:center;margin-top:15px"></div>
+</div>
+
+<div id="forumView-topic" style="display:none">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:15px">
+    <button onclick="forumShowTopics()" class="secondary" style="padding:8px 12px;font-size:12px">← Voltar</button>
+    <h2 id="forumTopicTitle" style="margin:0;font-size:16px"></h2>
+  </div>
+  <div id="forumTopicBody" style="background:#111;padding:15px;border-radius:10px;margin-bottom:20px"></div>
+  <div id="forumTopicMeta" style="margin-bottom:20px"></div>
+  <h3 style="margin-bottom:10px">💬 Respostas</h3>
+  <div id="forumRepliesList" style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px"></div>
+  <div id="forumReplyBox">
+    <h3 style="margin-bottom:10px">✏️ Responder</h3>
+    <textarea id="forumReplyInput" placeholder="Sua resposta..." rows="4"></textarea>
+    <button onclick="forumSendReply()" class="success" style="margin-top:8px">Enviar Resposta</button>
+  </div>
+</div>
+
+<div id="forumView-newTopic" style="display:none">
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:15px">
+    <button onclick="forumShowTopics()" class="secondary" style="padding:8px 12px;font-size:12px">← Voltar</button>
+    <h2 style="margin:0">✏️ Novo Tópico</h2>
+  </div>
+  <input id="forumNewTitle" placeholder="Título do tópico..." style="margin-bottom:10px">
+  <textarea id="forumNewContent" placeholder="Conteúdo do tópico..." rows="6"></textarea>
+  <button onclick="forumCreateTopic()" class="success" style="margin-top:10px">📤 Publicar</button>
+  <div class="msgBox" id="forumMsg"></div>
+</div>
+</div>
+
+<div id="ranking" class="panel">
+<h2>🏆 Ranking</h2>
+<div id="rankingList"></div>
+</div>
+
+<div id="admin" class="panel">
+<h2>⚙️ Painel Administrativo</h2>
+
+<div class="admin-stats">
+  <div class="stat-card">
+    <h4>👥 Usuários</h4>
+    <div class="value" id="statUsers">0</div>
+  </div>
+  <div class="stat-card">
+    <h4>💬 Mensagens</h4>
+    <div class="value" id="statMessages">0</div>
+  </div>
+  <div class="stat-card">
+    <h4>🪰 Moscas</h4>
+    <div class="value" id="statFlies">0</div>
+  </div>
+  <div class="stat-card">
+    <h4>🚫 Banidos</h4>
+    <div class="value" id="statBanned">0</div>
+  </div>
+</div>
+
+<div class="admin-stats" style="margin-bottom:10px">
+  <div class="stat-card">
+    <h4>📋 Tópicos</h4>
+    <div class="value" id="statTopics">0</div>
+  </div>
+  <div class="stat-card">
+    <h4>💬 Respostas</h4>
+    <div class="value" id="statReplies">0</div>
+  </div>
+</div>
+<div class="admin-tools">
+  <button onclick="adminShowUsers()" class="secondary">👥 Usuários</button>
+  <button onclick="adminShowCategories()" class="secondary">📋 Categorias</button>
+  <button onclick="adminShowAnnouncement()" class="secondary">📢 Anúncio</button>
+  <button onclick="adminShowAudit()" class="secondary">📋 Auditoria</button>
+  <button onclick="adminClearChat()" class="danger">🗑️ Limpar Chat</button>
+</div>
+
+<div id="adminUsersSection" style="display:none">
+  <h3>👥 Gerenciar Usuários</h3>
+  <div class="user-search">
+    <input type="text" id="userSearchInput" placeholder="🔍 Buscar usuário..." oninput="filterUsers()">
+  </div>
+  <div class="user-list" id="userList"></div>
+</div>
+
+<div id="adminAnnouncementSection" style="display:none">
+  <h3>📢 Enviar Anúncio do Sistema</h3>
+  <div class="announcement-box">
+    <textarea id="announcementText" placeholder="Digite o anúncio do sistema..." rows="4"></textarea>
+    <button onclick="sendAnnouncement()" class="success" style="margin-top:10px">📢 Enviar Anúncio</button>
+  </div>
+</div>
+
+<div id="adminAuditSection" style="display:none">
+  <h3>📋 Log de Auditoria</h3>
+  <div class="audit-log" id="auditLog"></div>
+</div>
+
+<div id="adminCategorySection" style="display:none">
+  <h3>📋 Categorias do Fórum</h3>
+  <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px;align-items:flex-end">
+    <input id="catName" placeholder="Nome da categoria" style="flex:1;margin:0;min-width:120px">
+    <input id="catDesc" placeholder="Descrição (opcional)" style="flex:2;margin:0;min-width:150px">
+    <input id="catIcon" placeholder="Emoji" style="width:70px;margin:0;text-align:center">
+    <button onclick="adminCreateCategory()" class="success" style="flex-shrink:0">+ Criar</button>
+  </div>
+  <div id="adminCategoryList" style="display:flex;flex-direction:column;gap:8px"></div>
+</div>
+</div>
+</div>
+
+<button onclick="logout()" class="danger" style="margin-top:15px">🚪 Sair</button>
+</div>
+
+<!-- CHAT PANEL EXPANDIDO -->
+<div id="chatPanel" class="hidden">
+<div class="chat-header">
+  <h3>💬 Chat Global</h3>
+  <div class="chat-controls">
+    <button onclick="toggleChat()" class="danger">✖</button>
+  </div>
+</div>
+
+<div id="chatMessages"></div>
+
+<div class="chat-input-area">
+  <input id="chatInput" placeholder="Digite sua mensagem..." onkeypress="if(event.key==='Enter')sendChat()">
+  <button onclick="sendChat()" class="success">➤</button>
+</div>
+</div>
+
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  limit,
+  where,
+  increment,
+  serverTimestamp
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+import {
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+/*
+  TROQUE PELO SEU firebaseConfig REAL.
+  Firebase Console > Configurações do projeto > Seus apps > SDK da Web.
+*/
+const firebaseConfig = {
+  apiKey: "AIzaSyCRm4tZsnRBlwU-0o-o0oHY6WEyozib-pI",
+  authDomain: "spider-network-e6257.firebaseapp.com",
+  projectId: "spider-network-e6257",
+  storageBucket: "spider-network-e6257.firebasestorage.app",
+  messagingSenderId: "73380928208",
+  appId: "1:73380928208:web:a423ca7e125ab8b52bdcd5",
+  measurementId: "G-8BWEYNM241"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+let currentUser = null;
+let currentUid = null;
+let lastRegister = 0;
+let gameInterval = null;
+let score = 0;
+let forumCurrentCategory = null;
+let forumCurrentTopic = null;
+let allUsers = [];
+
+// ===== UTILITÁRIOS =====
+function sanitizeHTML(str) {
+  if (!str) return "";
+  const div = document.createElement("div");
+  div.textContent = String(str);
+  return div.innerHTML;
+}
+
+function showMessage(elementId, message, type = "") {
+  const elem = document.getElementById(elementId);
+  if (!elem) return;
+  elem.innerHTML = sanitizeHTML(message);
+  elem.className = "msgBox " + type;
+}
+
+function showNotification(message, type = "success") {
+  const notif = document.createElement("div");
+  notif.className = "notification " + type;
+  notif.textContent = message;
+  document.body.appendChild(notif);
+  setTimeout(() => notif.remove(), 3000);
+}
+
+function getDefaultAvatar(username = "U") {
+  const colors = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7"];
+  const color = colors[String(username).length % colors.length];
+  const initial = String(username).charAt(0).toUpperCase() || "U";
+  return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90"><rect width="90" height="90" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="45" font-weight="bold" fill="#333">${initial}</text></svg>`)}`;
+}
+
+function toMillis(value) {
+  if (!value) return Date.now();
+  if (value.toMillis) return value.toMillis();
+  if (value.seconds) return value.seconds * 1000;
+  return new Date(value).getTime() || Date.now();
+}
+
+function formatDate(value) {
+  return new Date(toMillis(value)).toLocaleString("pt-BR");
+}
+
+function requireLogin() {
+  if (!currentUid || !currentUser) {
+    showNotification("Faça login primeiro", "error");
+    return false;
+  }
+  return true;
+}
+
+function isAdmin() {
+  return currentUser?.role === "admin";
+}
+
+function isModAdmin() {
+  return ["admin", "moderator"].includes(currentUser?.role);
+}
+
+// ===== SESSÃO FIREBASE =====
+onAuthStateChanged(auth, async (firebaseUser) => {
+  if (!firebaseUser) {
+    currentUser = null;
+    currentUid = null;
+    document.getElementById("dashboard").style.display = "none";
+    document.getElementById("authBox").style.display = "block";
+    return;
+  }
+
+  currentUid = firebaseUser.uid;
+  const userRef = doc(db, "users", currentUid);
+  const snap = await getDoc(userRef);
+
+  if (!snap.exists()) {
+    await setDoc(userRef, {
+      user: firebaseUser.email?.split("@")[0] || "usuario",
+      email: firebaseUser.email || "",
+      role: "user",
+      bio: "",
+      avatar: "",
+      score: 0,
+      flies: 0,
+      isBanned: false,
+      createdAt: serverTimestamp()
+    });
+    currentUser = (await getDoc(userRef)).data();
+  } else {
+    currentUser = snap.data();
+  }
+
+  if (currentUser?.isBanned) {
+    await signOut(auth);
+    showMessage("loginMsg", "Conta banida", "error");
+    return;
+  }
+
+  abrirSistema();
+});
+
+// ===== MATRIX ANIMATION =====
+const canvas = document.getElementById("matrix");
+const ctx = canvas.getContext("2d");
+
+function resizeCanvas() {
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+}
+resizeCanvas();
+
+const letters = "01";
+const size = 14;
+let drops = [];
+
+function initDrops() {
+  drops = [];
+  for (let i = 0; i < canvas.width / size; i++) {
+    drops[i] = Math.random() * canvas.height / size;
+  }
+}
+initDrops();
+
+function drawMatrix() {
+  ctx.fillStyle = "rgba(5, 5, 5, 0.05)";
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  ctx.fillStyle = "#00ff9d";
+  ctx.font = size + "px monospace";
+
+  for (let i = 0; i < drops.length; i++) {
+    const t = letters[Math.floor(Math.random() * letters.length)];
+    ctx.fillText(t, i * size, drops[i] * size);
+    if (drops[i] * size > canvas.height && Math.random() > 0.975) drops[i] = 0;
+    drops[i]++;
+  }
+}
+setInterval(drawMatrix, 33);
+
+window.addEventListener("resize", () => {
+  resizeCanvas();
+  initDrops();
+});
+
+// ===== SPIDER ANIMATION =====
+const spider = document.getElementById("spider");
+const thread = document.getElementById("thread");
+let sx = window.innerWidth / 2;
+let sy = 120;
+
+function updateSpider() {
+  spider.style.left = sx + "px";
+  spider.style.top = sy + "px";
+  thread.style.left = (sx + 35) + "px";
+  thread.style.height = sy + "px";
+}
+
+window.addEventListener("mousemove", (e) => {
+  if (window.innerWidth <= 600) return;
+  sx += (e.clientX - sx - 35) * 0.08;
+  sy += (e.clientY - sy - 35) * 0.08;
+  updateSpider();
+});
+updateSpider();
+
+// ===== SENHA =====
+const newPass = document.getElementById("newPass");
+const forcaSenhaElem = document.getElementById("forcaSenha");
+
+newPass?.addEventListener("input", function () {
+  const v = this.value;
+  let senhaScore = 0;
+  if (v.length >= 8) senhaScore++;
+  if (/[A-Z]/.test(v)) senhaScore++;
+  if (/[a-z]/.test(v)) senhaScore++;
+  if (/[0-9]/.test(v)) senhaScore++;
+  if (/[@$!%*?&]/.test(v)) senhaScore++;
+
+  if (senhaScore <= 2) {
+    forcaSenhaElem.textContent = "⚠️ Senha fraca";
+    forcaSenhaElem.className = "weak";
+  } else if (senhaScore <= 4) {
+    forcaSenhaElem.textContent = "⚡ Senha média";
+    forcaSenhaElem.className = "medium";
+  } else {
+    forcaSenhaElem.textContent = "✅ Senha forte!";
+    forcaSenhaElem.className = "strong";
+  }
+});
+
+window.toggleSenha = function (id) {
+  const c = document.getElementById(id);
+  c.type = c.type === "password" ? "text" : "password";
+};
+
+// ===== CADASTRO FIREBASE =====
+window.register = async function () {
+  const registerBtn = document.getElementById("registerBtn");
+  showMessage("registerMsg", "");
+  registerBtn.classList.add("loading");
+  registerBtn.disabled = true;
+
+  const now = Date.now();
+  if (now - lastRegister < 5000) {
+    showMessage("registerMsg", "Aguarde 5 segundos", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  const username = document.getElementById("newUser").value.trim();
+  const email = document.getElementById("newEmail").value.trim();
+  const password = document.getElementById("newPass").value.trim();
+
+  if (!username || !email || !password) {
+    showMessage("registerMsg", "Preencha todos os campos", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  if (username.length < 3) {
+    showMessage("registerMsg", "Usuário precisa ter pelo menos 3 caracteres", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  if (password.length < 6) {
+    showMessage("registerMsg", "A senha precisa ter pelo menos 6 caracteres", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  try {
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const firebaseUser = userCredential.user;
+
+    await setDoc(doc(db, "users", firebaseUser.uid), {
+      user: username,
+      email,
+      role: "user",
+      bio: "",
+      avatar: "",
+      score: 0,
+      flies: 0,
+      isBanned: false,
+      createdAt: serverTimestamp()
+    });
+
+    currentUid = firebaseUser.uid;
+    currentUser = (await getDoc(doc(db, "users", currentUid))).data();
+    lastRegister = now;
+
+    showMessage("registerMsg", "✅ Conta criada com sucesso!", "success");
+    setTimeout(() => abrirSistema(), 800);
+  } catch (err) {
+    showMessage("registerMsg", traduzErroFirebase(err), "error");
+  } finally {
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+  }
+};
+
+function traduzErroFirebase(err) {
+  const code = err?.code || "";
+  if (code.includes("email-already-in-use")) return "Este email já está cadastrado";
+  if (code.includes("invalid-email")) return "Email inválido";
+  if (code.includes("weak-password")) return "Senha fraca demais";
+  if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-credential")) return "Email ou senha incorretos";
+  if (code.includes("network-request-failed")) return "Erro de internet/conexão";
+  return err?.message || "Erro desconhecido";
+}
+
+window.mostrarCadastro = function () {
+  showMessage("loginMsg", "");
+  showMessage("registerMsg", "");
+  document.getElementById("loginArea").style.display = "none";
+  document.getElementById("cadastroArea").style.display = "block";
+};
+
+window.mostrarLogin = function () {
+  showMessage("loginMsg", "");
+  showMessage("registerMsg", "");
+  document.getElementById("loginArea").style.display = "block";
+  document.getElementById("cadastroArea").style.display = "none";
+};
+
+// ===== LOGIN FIREBASE =====
+window.login = async function () {
+  const loginBtn = document.getElementById("loginBtn");
+  showMessage("loginMsg", "");
+  loginBtn.classList.add("loading");
+  loginBtn.disabled = true;
+
+  const email = document.getElementById("loginUser").value.trim();
+  const password = document.getElementById("loginPass").value.trim();
+
+  if (!email || !password) {
+    showMessage("loginMsg", "Preencha email e senha", "error");
+    loginBtn.classList.remove("loading");
+    loginBtn.disabled = false;
+    return;
+  }
+
+  try {
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    currentUid = userCredential.user.uid;
+    const snap = await getDoc(doc(db, "users", currentUid));
+    currentUser = snap.data();
+
+    if (currentUser?.isBanned) {
+      await signOut(auth);
+      showMessage("loginMsg", "Conta banida", "error");
+      return;
+    }
+
+    abrirSistema();
+  } catch (err) {
+    showMessage("loginMsg", traduzErroFirebase(err), "error");
+  } finally {
+    loginBtn.classList.remove("loading");
+    loginBtn.disabled = false;
+  }
+};
+
+// ===== SISTEMA =====
+function abrirSistema() {
+  if (!currentUser) return;
+
+  document.getElementById("authBox").style.display = "none";
+  document.getElementById("dashboard").style.display = "block";
+
+  document.getElementById("userText").innerHTML =
+    `Bem-vindo, <span class="adminUser">${sanitizeHTML(currentUser.user)}</span>` +
+    (isAdmin() ? ' <span class="badge">ADMIN</span>' : "");
+
+  document.getElementById("adminBtn").style.display = isAdmin() ? "inline-block" : "none";
+
+  carregarPerfil();
+  carregarRanking();
+  carregarChat();
+  abrirPainel("home");
+}
+
+window.logout = async function () {
+  await signOut(auth);
+  currentUser = null;
+  currentUid = null;
+  document.getElementById("dashboard").style.display = "none";
+  document.getElementById("authBox").style.display = "block";
+  document.getElementById("adminBtn").style.display = "none";
+};
+
+// ===== PERFIL =====
+async function carregarPerfil() {
+  if (!requireLogin()) return;
+  const userSnap = await getDoc(doc(db, "users", currentUid));
+  currentUser = userSnap.data();
+
+  document.getElementById("perfilUser").textContent = currentUser.user || "";
+  document.getElementById("bioInput").value = currentUser.bio || "";
+
+  const avatarImg = document.getElementById("avatar");
+  avatarImg.src = currentUser.avatar || getDefaultAvatar(currentUser.user);
+
+  document.getElementById("stats").innerHTML = `🏆 Score: ${currentUser.score || 0} | 🪰 Moscas: ${currentUser.flies || 0}`;
+}
+
+window.salvarPerfil = async function () {
+  if (!requireLogin()) return;
+  const bio = document.getElementById("bioInput").value;
+
+  try {
+    await updateDoc(doc(db, "users", currentUid), { bio });
+    currentUser.bio = bio;
+    showMessage("profileMsg", "✅ Perfil salvo!", "success");
+  } catch (err) {
+    showMessage("profileMsg", "Erro ao salvar perfil", "error");
+  }
+};
+
+document.getElementById("avatarUpload")?.addEventListener("change", async function (e) {
+  if (!requireLogin()) return;
+  const file = e.target.files[0];
+  if (!file) return;
+
+  if (file.size > 500000) {
+    showMessage("profileMsg", "Imagem muito grande (máx 500KB)", "error");
+    return;
+  }
+
+  const reader = new FileReader();
+  reader.onload = async function (ev) {
+    try {
+      await updateDoc(doc(db, "users", currentUid), { avatar: ev.target.result });
+      currentUser.avatar = ev.target.result;
+      document.getElementById("avatar").src = ev.target.result;
+      showMessage("profileMsg", "✅ Avatar atualizado!", "success");
+    } catch {
+      showMessage("profileMsg", "Erro ao atualizar avatar", "error");
+    }
+  };
+  reader.readAsDataURL(file);
+});
+
+// ===== RANKING =====
+async function carregarRanking() {
+  if (!requireLogin()) return;
+  try {
+    const q = query(collection(db, "users"), orderBy("score", "desc"), limit(50));
+    const snap = await getDocs(q);
+    const users = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => !u.isBanned);
+    const list = document.getElementById("rankingList");
+
+    list.innerHTML = users.map((u, i) => `
+      <div>
+        <span>#${i + 1} ${sanitizeHTML(u.user)}</span>
+        <span>🏆 ${u.score || 0} | 🪰 ${u.flies || 0}</span>
+      </div>
+    `).join("");
+  } catch (err) {
+    console.error("Erro ao carregar ranking:", err);
+  }
+}
+
+// ===== CHAT FIREBASE =====
+async function carregarChat() {
+  if (!requireLogin()) return;
+  try {
+    const q = query(collection(db, "chat"), orderBy("createdAt", "asc"), limit(100));
+    const snap = await getDocs(q);
+    const messages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    renderChat(messages);
+  } catch (err) {
+    console.error("Erro ao carregar chat:", err);
+  }
+}
+
+function renderChat(messages) {
+  const chatDiv = document.getElementById("chatMessages");
+  chatDiv.innerHTML = messages.map(msg => {
+    const own = msg.uid === currentUid || msg.user === currentUser?.user;
+    const admin = msg.role === "admin";
+    return `
+      <div class="chat-msg ${own ? "own" : ""} ${admin ? "admin" : ""}">
+        <div class="chat-msg-header">
+          <span class="chat-msg-user ${admin ? "adminUser" : ""}">
+            ${sanitizeHTML(msg.user)} ${admin ? "👑" : ""}
+          </span>
+          <span class="chat-msg-time">${formatDate(msg.createdAt)}</span>
+        </div>
+        <div class="chat-msg-content">${sanitizeHTML(msg.content)}</div>
+      </div>
+    `;
+  }).join("");
+  chatDiv.scrollTop = chatDiv.scrollHeight;
+}
+
+window.sendChat = async function () {
+  if (!requireLogin()) return;
+  const input = document.getElementById("chatInput");
+  const content = input.value.trim();
+  if (!content) return;
+
+  try {
+    await addDoc(collection(db, "chat"), {
+      uid: currentUid,
+      user: currentUser.user,
+      role: currentUser.role || "user",
+      content,
+      createdAt: serverTimestamp()
+    });
+    input.value = "";
+    await carregarChat();
+  } catch (err) {
+    showNotification("Erro ao enviar mensagem", "error");
+  }
+};
+
+window.toggleChat = function () {
+  const panel = document.getElementById("chatPanel");
+  const hidden = panel.style.display === "none" || panel.classList.contains("hidden");
+
+  if (hidden) {
+    panel.style.display = "flex";
+    panel.classList.remove("hidden");
+    carregarChat();
+  } else {
+    panel.style.display = "none";
+    panel.classList.add("hidden");
+  }
+};
+
+// ===== PAINÉIS =====
+window.abrirPainel = async function (painel) {
+  document.querySelectorAll(".panel").forEach(p => p.style.display = "none");
+  const el = document.getElementById(painel);
+  if (el) el.style.display = "block";
+
+  if (painel === "admin") {
+    if (!isAdmin()) {
+      showNotification("Acesso negado", "error");
+      abrirPainel("home");
+      return;
+    }
+    await carregarAdminStats();
+    adminShowUsers();
+  }
+
+  if (painel === "forum") carregarForum();
+  if (painel === "ranking") carregarRanking();
+};
+
+// ===== ADMIN FIREBASE =====
+async function carregarAdminStats() {
+  if (!isAdmin()) return;
+
+  const usersSnap = await getDocs(collection(db, "users"));
+  const chatSnap = await getDocs(collection(db, "chat"));
+  const topicsSnap = await getDocs(collection(db, "forumTopics"));
+  const repliesSnap = await getDocs(collection(db, "forumReplies"));
+
+  const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  document.getElementById("statUsers").textContent = users.length;
+  document.getElementById("statMessages").textContent = chatSnap.size;
+  document.getElementById("statBanned").textContent = users.filter(u => u.isBanned).length;
+  document.getElementById("statTopics").textContent = topicsSnap.size;
+  document.getElementById("statReplies").textContent = repliesSnap.size;
+  document.getElementById("statFlies").textContent = users.reduce((s, u) => s + (u.flies || 0), 0);
+}
+
+window.adminShowUsers = async function () {
+  if (!isAdmin()) return;
+  document.getElementById("adminUsersSection").style.display = "block";
+  document.getElementById("adminAnnouncementSection").style.display = "none";
+  document.getElementById("adminAuditSection").style.display = "none";
+  document.getElementById("adminCategorySection").style.display = "none";
+
+  const snap = await getDocs(collection(db, "users"));
+  allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderUserList(allUsers);
+};
+
+function renderUserList(users) {
+  const list = document.getElementById("userList");
+  list.innerHTML = users.map(u => `
+    <div class="user-item ${u.isBanned ? "banned" : ""} ${u.role || "user"}">
+      <div class="user-info">
+        <img src="${u.avatar || getDefaultAvatar(u.user)}" class="user-item-avatar">
+        <div>
+          <div class="user-item-name">${sanitizeHTML(u.user)}</div>
+          <div class="user-item-role">${u.role || "user"} ${u.isBanned ? "(BANIDO)" : ""}</div>
+        </div>
+      </div>
+      <div class="user-actions">
+        ${u.role !== "admin" ? `
+          <button onclick="banUser('${u.id}', ${!u.isBanned})" class="${u.isBanned ? "success" : "danger"}">
+            ${u.isBanned ? "Desbanir" : "Banir"}
+          </button>
+          <button onclick="promoteUser('${u.id}', '${u.role === "user" ? "moderator" : "user"}')" class="secondary">
+            ${u.role === "user" ? "Promover" : "Rebaixar"}
+          </button>
+        ` : ""}
+      </div>
+    </div>
+  `).join("");
+}
+
+window.filterUsers = function () {
+  const search = document.getElementById("userSearchInput").value.toLowerCase();
+  renderUserList(allUsers.filter(u => String(u.user || "").toLowerCase().includes(search)));
+};
+
+window.banUser = async function (userId, ban) {
+  if (!isAdmin()) return;
+  await updateDoc(doc(db, "users", userId), { isBanned: ban });
+  await addDoc(collection(db, "audit"), {
+    user: currentUser.user,
+    action: ban ? "Baniu usuário" : "Desbaniu usuário",
+    createdAt: serverTimestamp()
+  });
+  showNotification(ban ? "Usuário banido" : "Usuário desbanido");
+  adminShowUsers();
+  carregarAdminStats();
+};
+
+window.promoteUser = async function (userId, role) {
+  if (!isAdmin()) return;
+  await updateDoc(doc(db, "users", userId), { role });
+  await addDoc(collection(db, "audit"), {
+    user: currentUser.user,
+    action: `Alterou cargo para ${role}`,
+    createdAt: serverTimestamp()
+  });
+  showNotification("Cargo atualizado");
+  adminShowUsers();
+};
+
+window.adminShowAnnouncement = function () {
+  document.getElementById("adminUsersSection").style.display = "none";
+  document.getElementById("adminAnnouncementSection").style.display = "block";
+  document.getElementById("adminAuditSection").style.display = "none";
+  document.getElementById("adminCategorySection").style.display = "none";
+};
+
+window.sendAnnouncement = async function () {
+  if (!isAdmin()) return;
+  const text = document.getElementById("announcementText").value.trim();
+  if (!text) return;
+
+  await addDoc(collection(db, "chat"), {
+    uid: currentUid,
+    user: currentUser.user,
+    role: "admin",
+    content: "[📢 ANÚNCIO] " + text,
+    createdAt: serverTimestamp()
+  });
+  showNotification("Anúncio enviado!");
+  document.getElementById("announcementText").value = "";
+};
+
+window.adminShowAudit = function () {
+  document.getElementById("adminUsersSection").style.display = "none";
+  document.getElementById("adminAnnouncementSection").style.display = "none";
+  document.getElementById("adminAuditSection").style.display = "block";
+  document.getElementById("adminCategorySection").style.display = "none";
+  carregarAudit();
+};
+
+async function carregarAudit() {
+  if (!isAdmin()) return;
+  const q = query(collection(db, "audit"), orderBy("createdAt", "desc"), limit(50));
+  const snap = await getDocs(q);
+  const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  document.getElementById("auditLog").innerHTML = logs.map(log => `
+    <div class="audit-entry">
+      <span class="audit-action">${sanitizeHTML(log.action)}</span>
+      <span>por ${sanitizeHTML(log.user)}</span>
+      <span class="audit-time">${formatDate(log.createdAt)}</span>
+    </div>
+  `).join("");
+}
+
+window.adminClearChat = async function () {
+  if (!isAdmin()) return;
+  if (!confirm("Tem certeza que deseja limpar todo o chat?")) return;
+
+  const snap = await getDocs(collection(db, "chat"));
+  await Promise.all(snap.docs.map(d => deleteDoc(doc(db, "chat", d.id))));
+  showNotification("Chat limpo!");
+  carregarChat();
+  carregarAdminStats();
+};
+
+// ===== JOGO =====
+window.toggleGame = function () {
+  const modal = document.getElementById("gameModal");
+  const visible = modal.style.display === "block";
+
+  if (visible) {
+    modal.style.display = "none";
+    stopGame();
+  } else {
+    modal.style.display = "block";
+    startGame();
+  }
+};
+
+function startGame() {
+  const gameCanvas = document.getElementById("modalGameCanvas");
+  const gameCtx = gameCanvas.getContext("2d");
+
+  let gameSpider = { x: 200, y: 110, size: 20 };
+  let flies = [];
+  score = 0;
+
+  function spawnFly() {
+    flies.push({
+      x: Math.random() * (gameCanvas.width - 20) + 10,
+      y: Math.random() * (gameCanvas.height - 20) + 10,
+      size: 10
+    });
+  }
+
+  for (let i = 0; i < 5; i++) spawnFly();
+
+  gameCanvas.onmousemove = (e) => {
+    const rect = gameCanvas.getBoundingClientRect();
+    gameSpider.x = e.clientX - rect.left;
+    gameSpider.y = e.clientY - rect.top;
+  };
+
+  clearInterval(gameInterval);
+  gameInterval = setInterval(() => {
+    gameCtx.fillStyle = "#000";
+    gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
+
+    gameCtx.fillStyle = "#00ffc8";
+    gameCtx.beginPath();
+    gameCtx.arc(gameSpider.x, gameSpider.y, gameSpider.size, 0, Math.PI * 2);
+    gameCtx.fill();
+
+    gameCtx.fillStyle = "#ff4444";
+    flies.forEach((fly, index) => {
+      gameCtx.beginPath();
+      gameCtx.arc(fly.x, fly.y, fly.size, 0, Math.PI * 2);
+      gameCtx.fill();
+
+      const dist = Math.hypot(gameSpider.x - fly.x, gameSpider.y - fly.y);
+      if (dist < gameSpider.size + fly.size) {
+        flies.splice(index, 1);
+        score += 10;
+        spawnFly();
+        showScorePopup(10);
+      }
+    });
+
+    if (flies.length < 3) spawnFly();
+  }, 1000 / 30);
+}
+
+async function stopGame() {
+  clearInterval(gameInterval);
+  if (score > 0 && currentUid) {
+    await updateDoc(doc(db, "users", currentUid), {
+      score: increment(score),
+      flies: increment(Math.floor(score / 10))
+    });
+    carregarPerfil();
+    carregarRanking();
+  }
+}
+
+function showScorePopup(points) {
+  const popup = document.createElement("div");
+  popup.className = "score-popup";
+  popup.textContent = `+${points}`;
+  document.body.appendChild(popup);
+  setTimeout(() => popup.remove(), 1000);
+}
+
+// ===== FÓRUM FIREBASE =====
+// Variáveis forumCurrentCategory e forumCurrentTopic já foram criadas no início do script.
+
+function forumShowView(view) {
+  ['categories','topics','topic','newTopic'].forEach(v => {
+    document.getElementById('forumView-' + v).style.display = 'none';
+  });
+  document.getElementById('forumView-' + view).style.display = 'block';
+}
+
+async function carregarForum() {
+  forumShowView('categories');
+
+  const list = document.getElementById('forumCategoryList');
+  list.innerHTML = "";
+
+  const snap = await getDocs(collection(db, "forumCategories"));
+
+  if (snap.empty) {
+    list.innerHTML = `
+      <p style="color:#666;text-align:center">
+        Nenhuma categoria criada ainda.
+      </p>
+    `;
+    return;
+  }
+
+  snap.forEach(docu => {
+    const cat = docu.data();
+
+    list.innerHTML += `
+      <div class="forum-category-card" onclick="forumOpenCategory('${docu.id}', '${cat.name}', '${cat.icon || "💬"}')">
+        <span class="forum-category-icon">${cat.icon || "💬"}</span>
+        <div class="forum-category-info">
+          <div class="forum-category-name">${sanitizeHTML(cat.name)}</div>
+          <div class="forum-category-desc">${sanitizeHTML(cat.description || "")}</div>
+        </div>
+      </div>
+    `;
+  });
+}
+
+window.forumOpenCategory = async function(id, name, icon) {
+  forumCurrentCategory = { id, name, icon };
+
+  document.getElementById('forumCatTitle').textContent = icon + " " + name;
+
+  forumShowView('topics');
+
+  await forumLoadTopics();
+}
+
+async function forumLoadTopics() {
+  const list = document.getElementById('forumTopicList');
+  list.innerHTML = "";
+
+  const q = query(
+    collection(db, "forumTopics"),
+    orderBy("createdAt", "desc")
+  );
+
+  const snap = await getDocs(q);
+
+  let encontrou = false;
+
+  snap.forEach(docu => {
+    const topic = docu.data();
+
+    if (topic.category !== forumCurrentCategory.id) return;
+
+    encontrou = true;
+
+    list.innerHTML += `
+      <div class="forum-topic-item" onclick="forumOpenTopic('${docu.id}')">
+        <div class="forum-topic-header">
+          <span class="forum-topic-title">${sanitizeHTML(topic.title)}</span>
+        </div>
+        <div class="forum-topic-meta">
+          <span>por <strong style="color:#00ffc8">${sanitizeHTML(topic.author)}</strong></span>
+        </div>
+      </div>
+    `;
+  });
+
+  if (!encontrou) {
+    list.innerHTML = `
+      <p style="color:#666;text-align:center;padding:20px">
+        Nenhum tópico ainda. Seja o primeiro!
+      </p>
+    `;
+  }
+}
+
+window.forumShowCategories = function() {
+  forumCurrentCategory = null;
+  forumCurrentTopic = null;
+  carregarForum();
+}
+
+window.forumShowTopics = function() {
+  forumCurrentTopic = null;
+  forumShowView('topics');
+  forumLoadTopics();
+}
+
+window.forumShowNewTopic = function() {
+  document.getElementById('forumNewTitle').value = '';
+  document.getElementById('forumNewContent').value = '';
+  showMessage('forumMsg', '');
+  forumShowView('newTopic');
+}
+
+window.forumCreateTopic = async function() {
+  const title = document.getElementById('forumNewTitle').value.trim();
+  const content = document.getElementById('forumNewContent').value.trim();
+
+  if (!title || !content) {
+    showMessage('forumMsg', 'Preencha título e conteúdo', 'error');
+    return;
+  }
+
+  await addDoc(collection(db, "forumTopics"), {
+    category: forumCurrentCategory.id,
+    title,
+    content,
+    author: currentUser.user,
+    authorRole: currentUser.role || "user",
+    createdAt: serverTimestamp()
+  });
+
+  showNotification("Tópico criado!");
+  forumShowTopics();
+}
+
+window.forumOpenTopic = async function(id) {
+  const ref = doc(db, "forumTopics", id);
+  const snap = await getDoc(ref);
+
+  if (!snap.exists()) return;
+
+  const topic = snap.data();
+  forumCurrentTopic = { id, ...topic };
+
+  document.getElementById('forumTopicTitle').textContent = topic.title;
+
+  document.getElementById('forumTopicBody').innerHTML = `
+    <div class="forum-topic-body-content">${sanitizeHTML(topic.content)}</div>
+    <div class="forum-topic-body-meta">
+      <span>por <strong style="color:#00ffc8">${sanitizeHTML(topic.author)}</strong></span>
+    </div>
+  `;
+
+  forumShowView('topic');
+
+  await forumLoadReplies(id);
+}
+
+async function forumLoadReplies(topicId) {
+  const list = document.getElementById('forumRepliesList');
+  list.innerHTML = "";
+
+  const q = query(
+    collection(db, "forumReplies"),
+    orderBy("createdAt", "asc")
+  );
+
+  const snap = await getDocs(q);
+
+  let encontrou = false;
+
+  snap.forEach(docu => {
+    const reply = docu.data();
+
+    if (reply.topic !== topicId) return;
+
+    encontrou = true;
+
+    list.innerHTML += `
+      <div class="forum-reply">
+        <div class="forum-reply-header">
+          <span class="forum-reply-author ${reply.authorRole}">
+            ${sanitizeHTML(reply.author)}
+          </span>
+        </div>
+        <div class="forum-reply-content">${sanitizeHTML(reply.content)}</div>
+      </div>
+    `;
+  });
+
+  if (!encontrou) {
+    list.innerHTML = `
+      <p style="color:#666;text-align:center">
+        Nenhuma resposta ainda.
+      </p>
+    `;
+  }
+}
+
+window.forumSendReply = async function() {
+  const input = document.getElementById('forumReplyInput');
+  const content = input.value.trim();
+
+  if (!content) return;
+
+  await addDoc(collection(db, "forumReplies"), {
+    topic: forumCurrentTopic.id,
+    content,
+    author: currentUser.user,
+    authorRole: currentUser.role || "user",
+    createdAt: serverTimestamp()
+  });
+
+  input.value = "";
+
+  await forumLoadReplies(forumCurrentTopic.id);
+}
+
+// ===== CATEGORIAS ADMIN =====
+window.adminShowCategories = function () {
+  if (!isAdmin()) return;
+  document.getElementById("adminUsersSection").style.display = "none";
+  document.getElementById("adminAnnouncementSection").style.display = "none";
+  document.getElementById("adminAuditSection").style.display = "none";
+  document.getElementById("adminCategorySection").style.display = "block";
+  adminLoadCategories();
+};
+
+async function adminLoadCategories() {
+  const q = query(collection(db, "forumCategories"), orderBy("order", "asc"));
+  const snap = await getDocs(q);
+  const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const list = document.getElementById("adminCategoryList");
+
+  list.innerHTML = cats.map(cat => `
+    <div class="forum-category-card">
+      <span class="forum-category-icon">${sanitizeHTML(cat.icon || "💬")}</span>
+      <div class="forum-category-info">
+        <div class="forum-category-name">${sanitizeHTML(cat.name)}</div>
+        <div class="forum-category-desc">${sanitizeHTML(cat.description || "")}</div>
+      </div>
+      <button onclick="adminDeleteCategory('${cat.id}')" class="danger" style="font-size:11px;padding:5px 10px">Deletar</button>
+    </div>
+  `).join("");
+}
+
+window.adminCreateCategory = async function () {
+  if (!isAdmin()) return;
+  const name = document.getElementById("catName").value.trim();
+  const description = document.getElementById("catDesc").value.trim();
+  const icon = document.getElementById("catIcon").value.trim() || "💬";
+
+  if (!name) {
+    showNotification("Nome obrigatório", "error");
+    return;
+  }
+
+  await addDoc(collection(db, "forumCategories"), {
+    name,
+    description,
+    icon,
+    order: Date.now(),
+    createdAt: serverTimestamp()
+  });
+
+  document.getElementById("catName").value = "";
+  document.getElementById("catDesc").value = "";
+  document.getElementById("catIcon").value = "";
+  showNotification("Categoria criada");
+  adminLoadCategories();
+};
+
+window.adminDeleteCategory = async function (id) {
+  if (!isAdmin()) return;
+  if (!confirm("Deletar categoria?")) return;
+  await deleteDoc(doc(db, "forumCategories", id));
+  adminLoadCategories();
+};
+
+// deixa algumas funções acessíveis no window
+window.carregarForum = carregarForum;
+window.carregarRanking = carregarRanking;
+window.carregarChat = carregarChat;
+</script>
+</body>
+</html>
