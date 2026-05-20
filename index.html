@@ -1133,10 +1133,48 @@
 </div>
 </div>
 
-<script>
-// ===== CONFIGURAÇÃO DA API =====
+<script type="module">
+
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
+
+import {
+getFirestore,
+collection,
+addDoc,
+getDocs,
+doc,
+getDoc,
+setDoc,
+updateDoc,
+query,
+orderBy,
+limit
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
+
+import {
+getAuth,
+createUserWithEmailAndPassword,
+signInWithEmailAndPassword,
+signOut
+} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
+
+const firebaseConfig = {
+apiKey: "SUA_API_KEY",
+authDomain: "SEU_AUTH_DOMAIN",
+projectId: "SEU_PROJECT_ID",
+storageBucket: "SEU_BUCKET",
+messagingSenderId: "SEU_SENDER_ID",
+appId: "SEU_APP_ID"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+const auth = getAuth(app);
+
+
+// ===== CONFIGURAÇÃO FIREBASE =====
 // Troque pela URL gerada no Render após o deploy
-const API_URL = 'https://spider-api-XXXX.onrender.com/api';
+
 
 // Variáveis globais
 let currentUser = null;
@@ -1173,37 +1211,7 @@ function getDefaultAvatar(username) {
   return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90"><rect width="90" height="90" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="45" font-weight="bold" fill="#333">${initial}</text></svg>`)}`;
 }
 
-// ===== API HELPER =====
-async function apiCall(endpoint, options = {}) {
-  const url = API_URL + endpoint;
-  
-  const config = {
-    headers: {
-      'Content-Type': 'application/json',
-      ...(authToken && { 'Authorization': 'Bearer ' + authToken }),
-      ...options.headers
-    },
-    ...options
-  };
-  
-  if (config.body && typeof config.body === 'object') {
-    config.body = JSON.stringify(config.body);
-  }
-  
-  try {
-    const response = await fetch(url, config);
-    const data = await response.json();
-    
-    if (!response.ok) {
-      throw new Error(data.error || 'Erro na requisição');
-    }
-    
-    return data;
-  } catch (err) {
-    console.error('API Error:', err);
-    throw err;
-  }
-}
+// ===== FIREBASE =====
 
 // ===== SESSÃO =====
 async function checkSession() {
