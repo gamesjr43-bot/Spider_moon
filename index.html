@@ -923,7 +923,7 @@
 
 <div id="loginArea">
 <h3>🕷 Login</h3>
-<input id="loginUser" placeholder="Usuário" autocomplete="username" autocapitalize="none">
+<input id="loginUser" placeholder="Email" autocomplete="username" autocapitalize="none">
 <div class="passBox">
 <input id="loginPass" type="password" placeholder="Senha" autocomplete="current-password">
 <span class="eyeBtn" onclick="toggleSenha('loginPass')">👁</span>
@@ -1321,13 +1321,13 @@ newPass?.addEventListener("input", function() {
   }
 });
 
-function toggleSenha(id) {
+window.toggleSenha = function(id) {
   const c = document.getElementById(id);
   c.type = c.type === 'password' ? 'text' : 'password';
 }
 
 // ===== CADASTRO =====
-async function register() {
+window.register = async function() {
   const registerBtn = document.getElementById("registerBtn");
   showMessage("registerMsg", "");
   registerBtn.classList.add("loading");
@@ -1373,14 +1373,14 @@ async function register() {
   }
 }
 
-function mostrarCadastro() {
+window.mostrarCadastro = function() {
   showMessage("loginMsg", "");
   showMessage("registerMsg", "");
   document.getElementById("loginArea").style.display = "none";
   document.getElementById("cadastroArea").style.display = "block";
 }
 
-function mostrarLogin() {
+window.mostrarLogin = function() {
   showMessage("loginMsg", "");
   showMessage("registerMsg", "");
   document.getElementById("loginArea").style.display = "block";
@@ -1388,7 +1388,7 @@ function mostrarLogin() {
 }
 
 // ===== LOGIN =====
-async function login() {
+window.login = async function() {
   const loginBtn = document.getElementById("loginBtn");
   showMessage("loginMsg", "");
   loginBtn.classList.add("loading");
@@ -1443,7 +1443,7 @@ function abrirSistema() {
   carregarChat();
 }
 
-function logout() {
+window.logout = function() {
   authToken = null;
   currentUser = null;
   localStorage.removeItem('spiderToken');
@@ -1475,7 +1475,7 @@ async function carregarPerfil() {
   }
 }
 
-async function salvarPerfil() {
+window.salvarPerfil = async function() {
   const bio = document.getElementById("bioInput").value;
   
   try {
@@ -1564,7 +1564,7 @@ function renderChat(messages) {
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
-async function sendChat() {
+window.sendChat = async function() {
   const input = document.getElementById("chatInput");
   const content = input.value.trim();
   
@@ -1583,7 +1583,7 @@ async function sendChat() {
   }
 }
 
-function toggleChat() {
+window.toggleChat = function() {
   const panel = document.getElementById("chatPanel");
   const isHidden = panel.style.display === 'none' || panel.classList.contains('hidden');
   
@@ -1598,7 +1598,7 @@ function toggleChat() {
 }
 
 // ===== ADMIN =====
-async function abrirPainel(painel) {
+window.abrirPainel = async function(painel) {
   document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
   document.getElementById(painel).style.display = 'block';
   
@@ -2185,6 +2185,36 @@ async function adminDeleteCategory(id, name) {
 document.addEventListener('DOMContentLoaded', () => {
   checkSession();
 });
+
+
+// Firebase sessão automática
+auth.onAuthStateChanged(async (user) => {
+
+if(user){
+
+try{
+
+const userDoc = await getDoc(doc(db, "users", user.uid));
+
+if(userDoc.exists()){
+
+currentUser = userDoc.data();
+
+abrirSistema();
+
+}
+
+}catch(err){
+
+console.error(err);
+
+}
+
+}
+
+});
+
+
 </script>
 </body>
 </html>
