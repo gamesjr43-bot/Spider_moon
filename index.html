@@ -1929,260 +1929,222 @@ function showScorePopup(points) {
 }
 
 // ===== FÓRUM FIREBASE =====
+let forumCurrentCategory = null;
+let forumCurrentTopic = null;
+
 function forumShowView(view) {
-  ["categories", "topics", "topic", "newTopic"].forEach(v => {
-    document.getElementById("forumView-" + v).style.display = "none";
+  ['categories','topics','topic','newTopic'].forEach(v => {
+    document.getElementById('forumView-' + v).style.display = 'none';
   });
-  document.getElementById("forumView-" + view).style.display = "block";
+  document.getElementById('forumView-' + view).style.display = 'block';
 }
 
 async function carregarForum() {
-  forumShowView("categories");
-  const q = query(collection(db, "forumCategories"), orderBy("order", "asc"));
-  const snap = await getDocs(q);
-  const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const list = document.getElementById("forumCategoryList");
+  forumShowView('categories');
 
-  if (cats.length === 0) {
-    list.innerHTML = `<p style="color:#666;text-align:center">Nenhuma categoria criada ainda.${isAdmin() ? " Crie uma no painel Admin." : ""}</p>`;
+  const list = document.getElementById('forumCategoryList');
+  list.innerHTML = "";
+
+  const snap = await getDocs(collection(db, "forumCategories"));
+
+  if (snap.empty) {
+    list.innerHTML = `
+      <p style="color:#666;text-align:center">
+        Nenhuma categoria criada ainda.
+      </p>
+    `;
     return;
   }
 
-  const topicsSnap = await getDocs(collection(db, "forumTopics"));
-  const topics = topicsSnap.docs.map(d => d.data());
+  snap.forEach(docu => {
+    const cat = docu.data();
 
-  list.innerHTML = cats.map(cat => {
-    const count = topics.filter(t => t.categoryId === cat.id).length;
-    return `
-      <div class="forum-category-card" onclick="forumOpenCategory('${cat.id}','${sanitizeHTML(cat.name)}','${sanitizeHTML(cat.icon || "💬")}')">
-        <span class="forum-category-icon">${sanitizeHTML(cat.icon || "💬")}</span>
+    list.innerHTML += `
+      <div class="forum-category-card" onclick="forumOpenCategory('${docu.id}', '${cat.name}', '${cat.icon || "💬"}')">
+        <span class="forum-category-icon">${cat.icon || "💬"}</span>
         <div class="forum-category-info">
           <div class="forum-category-name">${sanitizeHTML(cat.name)}</div>
           <div class="forum-category-desc">${sanitizeHTML(cat.description || "")}</div>
         </div>
-        <span class="forum-category-count">${count} tópico${count !== 1 ? "s" : ""}</span>
       </div>
     `;
-  }).join("");
+  });
 }
 
-window.forumShowCategories = function () {
+window.forumOpenCategory = async function(id, name, icon) {
+  forumCurrentCategory = { id, name, icon };
+
+  document.getElementById('forumCatTitle').textContent = icon + " " + name;
+
+  forumShowView('topics');
+
+  await forumLoadTopics();
+}
+
+async function forumLoadTopics() {
+  const list = document.getElementById('forumTopicList');
+  list.innerHTML = "";
+
+  const q = query(
+    collection(db, "forumTopics"),
+    orderBy("createdAt", "desc")
+  );
+
+  const snap = await getDocs(q);
+
+  let encontrou = false;
+
+  snap.forEach(docu => {
+    const topic = docu.data();
+
+    if (topic.category !== forumCurrentCategory.id) return;
+
+    encontrou = true;
+
+    list.innerHTML += `
+      <div class="forum-topic-item" onclick="forumOpenTopic('${docu.id}')">
+        <div class="forum-topic-header">
+          <span class="forum-topic-title">${sanitizeHTML(topic.title)}</span>
+        </div>
+        <div class="forum-topic-meta">
+          <span>por <strong style="color:#00ffc8">${sanitizeHTML(topic.author)}</strong></span>
+        </div>
+      </div>
+    `;
+  });
+
+  if (!encontrou) {
+    list.innerHTML = `
+      <p style="color:#666;text-align:center;padding:20px">
+        Nenhum tópico ainda. Seja o primeiro!
+      </p>
+    `;
+  }
+}
+
+window.forumShowCategories = function() {
   forumCurrentCategory = null;
   forumCurrentTopic = null;
   carregarForum();
-};
-
-window.forumOpenCategory = async function (id, name, icon) {
-  forumCurrentCategory = { id, name, icon };
-  document.getElementById("forumCatTitle").textContent = icon + " " + name;
-  forumShowView("topics");
-  await forumLoadTopics();
-};
-
-async function forumLoadTopics() {
-  const q = query(
-    collection(db, "forumTopics"),
-    where("categoryId", "==", forumCurrentCategory.id),
-    orderBy("updatedAt", "desc")
-  );
-  const snap = await getDocs(q);
-  const topics = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const list = document.getElementById("forumTopicList");
-
-  if (topics.length === 0) {
-    list.innerHTML = '<p style="color:#666;text-align:center;padding:20px">Nenhum tópico ainda. Seja o primeiro!</p>';
-    return;
-  }
-
-  list.innerHTML = topics.map(t => `
-    <div class="forum-topic-item ${t.pinned ? "pinned" : ""} ${t.locked ? "locked" : ""}" onclick="forumOpenTopic('${t.id}')">
-      <div class="forum-topic-header">
-        <span class="forum-topic-title">${sanitizeHTML(t.title)}</span>
-        <span class="forum-topic-badges">
-          ${t.pinned ? '<span class="forum-badge pin">📌 Fixado</span>' : ""}
-          ${t.locked ? '<span class="forum-badge lock">🔒</span>' : ""}
-        </span>
-      </div>
-      <div class="forum-topic-meta">
-        <span>por <strong style="color:#00ffc8">${sanitizeHTML(t.author)}</strong></span>
-        <span>💬 ${t.replyCount || 0}</span>
-        <span>👁 ${t.views || 0}</span>
-        <span>${formatDate(t.updatedAt)}</span>
-      </div>
-    </div>
-  `).join("");
 }
 
-window.forumShowTopics = function () {
+window.forumShowTopics = function() {
   forumCurrentTopic = null;
-  forumShowView("topics");
+  forumShowView('topics');
   forumLoadTopics();
-};
-
-window.forumOpenTopic = async function (id) {
-  const ref = doc(db, "forumTopics", id);
-  const snap = await getDoc(ref);
-  if (!snap.exists()) return;
-
-  const topic = { id: snap.id, ...snap.data() };
-  forumCurrentTopic = topic;
-
-  await updateDoc(ref, { views: increment(1) });
-
-  document.getElementById("forumTopicTitle").textContent = topic.title;
-  document.getElementById("forumTopicBody").innerHTML = `
-    <div class="forum-topic-body-content">${sanitizeHTML(topic.content)}</div>
-    <div class="forum-topic-body-meta">
-      <span>por <strong style="color:#00ffc8">${sanitizeHTML(topic.author)}</strong></span>
-      <span>${formatDate(topic.createdAt)}</span>
-      <span>👁 ${(topic.views || 0) + 1} views</span>
-      ${topic.locked ? '<span style="color:#ff4444">🔒 Tópico bloqueado</span>' : ""}
-      ${topic.pinned ? '<span style="color:#ffd700">📌 Fixado</span>' : ""}
-    </div>
-    ${isModAdmin() ? `
-      <div class="forum-mod-actions">
-        <button onclick="forumTogglePin('${topic.id}')" class="secondary" style="font-size:11px;padding:5px 10px">${topic.pinned ? "📌 Desafixar" : "📌 Fixar"}</button>
-        <button onclick="forumToggleLock('${topic.id}')" class="secondary" style="font-size:11px;padding:5px 10px">${topic.locked ? "🔓 Desbloquear" : "🔒 Bloquear"}</button>
-        <button onclick="forumDeleteTopic('${topic.id}')" class="danger" style="font-size:11px;padding:5px 10px">🗑️ Deletar</button>
-      </div>` : ""}
-  `;
-
-  const replyBox = document.getElementById("forumReplyBox");
-  if (topic.locked && !isModAdmin()) {
-    replyBox.innerHTML = '<p style="color:#ff4444;text-align:center">🔒 Este tópico está bloqueado.</p>';
-  } else {
-    replyBox.innerHTML = `
-      <h3 style="margin-bottom:10px">✏️ Responder</h3>
-      <textarea id="forumReplyInput" placeholder="Sua resposta..." rows="4"></textarea>
-      <button onclick="forumSendReply()" class="success" style="margin-top:8px">Enviar Resposta</button>
-    `;
-  }
-
-  forumShowView("topic");
-  await forumLoadReplies(id);
-};
-
-async function forumLoadReplies(topicId) {
-  const q = query(collection(db, "forumReplies"), where("topicId", "==", topicId), orderBy("createdAt", "asc"));
-  const snap = await getDocs(q);
-  const replies = snap.docs.map(d => ({ id: d.id, ...d.data() }));
-  const list = document.getElementById("forumRepliesList");
-
-  if (replies.length === 0) {
-    list.innerHTML = '<p style="color:#666;text-align:center">Nenhuma resposta ainda.</p>';
-    return;
-  }
-
-  list.innerHTML = replies.map(r => `
-    <div class="forum-reply">
-      <div class="forum-reply-header">
-        <span class="forum-reply-author ${r.authorRole || "user"}">${sanitizeHTML(r.author)}
-          ${r.authorRole === "admin" ? " 👑" : r.authorRole === "moderator" ? " 🛡️" : ""}
-        </span>
-        <span class="forum-reply-time">${formatDate(r.createdAt)}</span>
-      </div>
-      <div class="forum-reply-content">${sanitizeHTML(r.content)}</div>
-      ${isModAdmin() ? `<div class="forum-reply-actions"><button onclick="forumDeleteReply('${r.id}')" class="danger" style="font-size:11px;padding:4px 8px">🗑️</button></div>` : ""}
-    </div>
-  `).join("");
 }
 
-window.forumSendReply = async function () {
-  if (!requireLogin() || !forumCurrentTopic) return;
-  const input = document.getElementById("forumReplyInput");
-  const content = input?.value?.trim();
-  if (!content) return;
+window.forumShowNewTopic = function() {
+  document.getElementById('forumNewTitle').value = '';
+  document.getElementById('forumNewContent').value = '';
+  showMessage('forumMsg', '');
+  forumShowView('newTopic');
+}
 
-  await addDoc(collection(db, "forumReplies"), {
-    topicId: forumCurrentTopic.id,
-    content,
-    author: currentUser.user,
-    authorRole: currentUser.role || "user",
-    createdAt: serverTimestamp()
-  });
+window.forumCreateTopic = async function() {
+  const title = document.getElementById('forumNewTitle').value.trim();
+  const content = document.getElementById('forumNewContent').value.trim();
 
-  await updateDoc(doc(db, "forumTopics", forumCurrentTopic.id), {
-    replyCount: increment(1),
-    updatedAt: serverTimestamp()
-  });
-
-  input.value = "";
-  await forumLoadReplies(forumCurrentTopic.id);
-};
-
-window.forumShowNewTopic = function () {
-  document.getElementById("forumNewTitle").value = "";
-  document.getElementById("forumNewContent").value = "";
-  showMessage("forumMsg", "");
-  forumShowView("newTopic");
-};
-
-window.forumCreateTopic = async function () {
-  if (!requireLogin() || !forumCurrentCategory) return;
-
-  const title = document.getElementById("forumNewTitle").value.trim();
-  const content = document.getElementById("forumNewContent").value.trim();
-
-  if (title.length < 5) {
-    showMessage("forumMsg", "Título muito curto", "error");
-    return;
-  }
-
-  if (content.length < 10) {
-    showMessage("forumMsg", "Conteúdo muito curto", "error");
+  if (!title || !content) {
+    showMessage('forumMsg', 'Preencha título e conteúdo', 'error');
     return;
   }
 
   await addDoc(collection(db, "forumTopics"), {
-    categoryId: forumCurrentCategory.id,
+    category: forumCurrentCategory.id,
     title,
     content,
     author: currentUser.user,
     authorRole: currentUser.role || "user",
-    pinned: false,
-    locked: false,
-    views: 0,
-    replyCount: 0,
-    createdAt: serverTimestamp(),
-    updatedAt: serverTimestamp()
+    createdAt: new Date()
   });
 
-  showMessage("forumMsg", "✅ Tópico criado!", "success");
+  showNotification("Tópico criado!");
   forumShowTopics();
-};
+}
 
-window.forumTogglePin = async function (id) {
-  if (!isModAdmin()) return;
+window.forumOpenTopic = async function(id) {
   const ref = doc(db, "forumTopics", id);
   const snap = await getDoc(ref);
-  await updateDoc(ref, { pinned: !snap.data().pinned });
-  forumOpenTopic(id);
-};
 
-window.forumToggleLock = async function (id) {
-  if (!isModAdmin()) return;
-  const ref = doc(db, "forumTopics", id);
-  const snap = await getDoc(ref);
-  await updateDoc(ref, { locked: !snap.data().locked });
-  forumOpenTopic(id);
-};
+  if (!snap.exists()) return;
 
-window.forumDeleteTopic = async function (id) {
-  if (!isModAdmin()) return;
-  if (!confirm("Deletar este tópico?")) return;
-  await deleteDoc(doc(db, "forumTopics", id));
-  forumShowTopics();
-};
+  const topic = snap.data();
+  forumCurrentTopic = { id, ...topic };
 
-window.forumDeleteReply = async function (id) {
-  if (!isModAdmin()) return;
-  if (!confirm("Deletar esta resposta?")) return;
-  await deleteDoc(doc(db, "forumReplies", id));
-  if (forumCurrentTopic) {
-    await updateDoc(doc(db, "forumTopics", forumCurrentTopic.id), { replyCount: increment(-1) });
-    forumLoadReplies(forumCurrentTopic.id);
+  document.getElementById('forumTopicTitle').textContent = topic.title;
+
+  document.getElementById('forumTopicBody').innerHTML = `
+    <div class="forum-topic-body-content">${sanitizeHTML(topic.content)}</div>
+    <div class="forum-topic-body-meta">
+      <span>por <strong style="color:#00ffc8">${sanitizeHTML(topic.author)}</strong></span>
+    </div>
+  `;
+
+  forumShowView('topic');
+
+  await forumLoadReplies(id);
+}
+
+async function forumLoadReplies(topicId) {
+  const list = document.getElementById('forumRepliesList');
+  list.innerHTML = "";
+
+  const q = query(
+    collection(db, "forumReplies"),
+    orderBy("createdAt", "asc")
+  );
+
+  const snap = await getDocs(q);
+
+  let encontrou = false;
+
+  snap.forEach(docu => {
+    const reply = docu.data();
+
+    if (reply.topic !== topicId) return;
+
+    encontrou = true;
+
+    list.innerHTML += `
+      <div class="forum-reply">
+        <div class="forum-reply-header">
+          <span class="forum-reply-author ${reply.authorRole}">
+            ${sanitizeHTML(reply.author)}
+          </span>
+        </div>
+        <div class="forum-reply-content">${sanitizeHTML(reply.content)}</div>
+      </div>
+    `;
+  });
+
+  if (!encontrou) {
+    list.innerHTML = `
+      <p style="color:#666;text-align:center">
+        Nenhuma resposta ainda.
+      </p>
+    `;
   }
-};
+}
+
+window.forumSendReply = async function() {
+  const input = document.getElementById('forumReplyInput');
+  const content = input.value.trim();
+
+  if (!content) return;
+
+  await addDoc(collection(db, "forumReplies"), {
+    topic: forumCurrentTopic.id,
+    content,
+    author: currentUser.user,
+    authorRole: currentUser.role || "user",
+    createdAt: new Date()
+  });
+
+  input.value = "";
+
+  await forumLoadReplies(forumCurrentTopic.id);
+}
 
 // ===== CATEGORIAS ADMIN =====
 window.adminShowCategories = function () {
