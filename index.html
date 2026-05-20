@@ -1134,98 +1134,156 @@
 </div>
 
 <script type="module">
-
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js";
 
 import {
-getFirestore,
-collection,
-addDoc,
-getDocs,
-doc,
-getDoc,
-setDoc,
-updateDoc,
-query,
-orderBy,
-limit
+  getFirestore,
+  collection,
+  addDoc,
+  getDocs,
+  doc,
+  getDoc,
+  setDoc,
+  updateDoc,
+  deleteDoc,
+  query,
+  orderBy,
+  limit,
+  where,
+  increment,
+  serverTimestamp
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
 
 import {
-getAuth,
-createUserWithEmailAndPassword,
-signInWithEmailAndPassword,
-signOut
+  getAuth,
+  createUserWithEmailAndPassword,
+  signInWithEmailAndPassword,
+  signOut,
+  onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
+/*
+  TROQUE PELO SEU firebaseConfig REAL.
+  Firebase Console > Configurações do projeto > Seus apps > SDK da Web.
+*/
 const firebaseConfig = {
-apiKey: "SUA_API_KEY",
-authDomain: "SEU_AUTH_DOMAIN",
-projectId: "SEU_PROJECT_ID",
-storageBucket: "SEU_BUCKET",
-messagingSenderId: "SEU_SENDER_ID",
-appId: "SEU_APP_ID"
+  apiKey: "SUA_API_KEY",
+  authDomain: "SEU_AUTH_DOMAIN",
+  projectId: "SEU_PROJECT_ID",
+  storageBucket: "SEU_BUCKET",
+  messagingSenderId: "SEU_SENDER_ID",
+  appId: "SEU_APP_ID"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 const auth = getAuth(app);
 
-
-// ===== CONFIGURAÇÃO FIREBASE =====
-// Troque pela URL gerada no Render após o deploy
-
-
-// Variáveis globais
 let currentUser = null;
-let authToken = localStorage.getItem('spiderToken');
+let currentUid = null;
 let lastRegister = 0;
+let gameInterval = null;
+let score = 0;
+let forumCurrentCategory = null;
+let forumCurrentTopic = null;
+let allUsers = [];
 
 // ===== UTILITÁRIOS =====
 function sanitizeHTML(str) {
-  if (!str) return '';
-  const div = document.createElement('div');
-  div.textContent = str;
+  if (!str) return "";
+  const div = document.createElement("div");
+  div.textContent = String(str);
   return div.innerHTML;
 }
 
-function showMessage(elementId, message, type = '') {
+function showMessage(elementId, message, type = "") {
   const elem = document.getElementById(elementId);
   if (!elem) return;
   elem.innerHTML = sanitizeHTML(message);
-  elem.className = 'msgBox ' + type;
+  elem.className = "msgBox " + type;
 }
 
-function showNotification(message, type = 'success') {
-  const notif = document.createElement('div');
-  notif.className = 'notification ' + type;
+function showNotification(message, type = "success") {
+  const notif = document.createElement("div");
+  notif.className = "notification " + type;
   notif.textContent = message;
   document.body.appendChild(notif);
   setTimeout(() => notif.remove(), 3000);
 }
 
-function getDefaultAvatar(username) {
-  const colors = ['#ff6b6b', '#4ecdc4', '#45b7d1', '#96ceb4', '#ffeaa7'];
-  const color = colors[username.length % colors.length];
-  const initial = username.charAt(0).toUpperCase();
+function getDefaultAvatar(username = "U") {
+  const colors = ["#ff6b6b", "#4ecdc4", "#45b7d1", "#96ceb4", "#ffeaa7"];
+  const color = colors[String(username).length % colors.length];
+  const initial = String(username).charAt(0).toUpperCase() || "U";
   return `data:image/svg+xml,${encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" width="90" height="90"><rect width="90" height="90" fill="${color}"/><text x="50%" y="50%" dominant-baseline="central" text-anchor="middle" font-size="45" font-weight="bold" fill="#333">${initial}</text></svg>`)}`;
 }
 
-// ===== FIREBASE =====
-
-// ===== SESSÃO =====
-async function checkSession() {
-  if (!authToken) return;
-  
-  try {
-    const user = await apiCall('/profile');
-    currentUser = user;
-    abrirSistema();
-  } catch (err) {
-    // Token inválido, limpa
-    logout();
-  }
+function toMillis(value) {
+  if (!value) return Date.now();
+  if (value.toMillis) return value.toMillis();
+  if (value.seconds) return value.seconds * 1000;
+  return new Date(value).getTime() || Date.now();
 }
+
+function formatDate(value) {
+  return new Date(toMillis(value)).toLocaleString("pt-BR");
+}
+
+function requireLogin() {
+  if (!currentUid || !currentUser) {
+    showNotification("Faça login primeiro", "error");
+    return false;
+  }
+  return true;
+}
+
+function isAdmin() {
+  return currentUser?.role === "admin";
+}
+
+function isModAdmin() {
+  return ["admin", "moderator"].includes(currentUser?.role);
+}
+
+// ===== SESSÃO FIREBASE =====
+onAuthStateChanged(auth, async (firebaseUser) => {
+  if (!firebaseUser) {
+    currentUser = null;
+    currentUid = null;
+    document.getElementById("dashboard").style.display = "none";
+    document.getElementById("authBox").style.display = "block";
+    return;
+  }
+
+  currentUid = firebaseUser.uid;
+  const userRef = doc(db, "users", currentUid);
+  const snap = await getDoc(userRef);
+
+  if (!snap.exists()) {
+    await setDoc(userRef, {
+      user: firebaseUser.email?.split("@")[0] || "usuario",
+      email: firebaseUser.email || "",
+      role: "user",
+      bio: "",
+      avatar: "",
+      score: 0,
+      flies: 0,
+      isBanned: false,
+      createdAt: serverTimestamp()
+    });
+    currentUser = (await getDoc(userRef)).data();
+  } else {
+    currentUser = snap.data();
+  }
+
+  if (currentUser?.isBanned) {
+    await signOut(auth);
+    showMessage("loginMsg", "Conta banida", "error");
+    return;
+  }
+
+  abrirSistema();
+});
 
 // ===== MATRIX ANIMATION =====
 const canvas = document.getElementById("matrix");
@@ -1258,15 +1316,13 @@ function drawMatrix() {
   for (let i = 0; i < drops.length; i++) {
     const t = letters[Math.floor(Math.random() * letters.length)];
     ctx.fillText(t, i * size, drops[i] * size);
-    if (drops[i] * size > canvas.height && Math.random() > 0.975) {
-      drops[i] = 0;
-    }
+    if (drops[i] * size > canvas.height && Math.random() > 0.975) drops[i] = 0;
     drops[i]++;
   }
 }
 setInterval(drawMatrix, 33);
 
-window.addEventListener('resize', () => {
+window.addEventListener("resize", () => {
   resizeCanvas();
   initDrops();
 });
@@ -1290,44 +1346,40 @@ window.addEventListener("mousemove", (e) => {
   sy += (e.clientY - sy - 35) * 0.08;
   updateSpider();
 });
-
 updateSpider();
 
 // ===== SENHA =====
 const newPass = document.getElementById("newPass");
 const forcaSenhaElem = document.getElementById("forcaSenha");
 
-newPass?.addEventListener("input", function() {
+newPass?.addEventListener("input", function () {
   const v = this.value;
-  let score = 0;
-  if (v.length >= 8) score++;
-  if (/[A-Z]/.test(v)) score++;
-  if (/[a-z]/.test(v)) score++;
-  if (/[0-9]/.test(v)) score++;
-  if (/[@$!%*?&]/.test(v)) score++;
+  let senhaScore = 0;
+  if (v.length >= 8) senhaScore++;
+  if (/[A-Z]/.test(v)) senhaScore++;
+  if (/[a-z]/.test(v)) senhaScore++;
+  if (/[0-9]/.test(v)) senhaScore++;
+  if (/[@$!%*?&]/.test(v)) senhaScore++;
 
-  if (score <= 2) {
+  if (senhaScore <= 2) {
     forcaSenhaElem.textContent = "⚠️ Senha fraca";
     forcaSenhaElem.className = "weak";
-    forcaSenhaElem.id = "forcaSenha";
-  } else if (score <= 4) {
+  } else if (senhaScore <= 4) {
     forcaSenhaElem.textContent = "⚡ Senha média";
     forcaSenhaElem.className = "medium";
-    forcaSenhaElem.id = "forcaSenha";
   } else {
     forcaSenhaElem.textContent = "✅ Senha forte!";
     forcaSenhaElem.className = "strong";
-    forcaSenhaElem.id = "forcaSenha";
   }
 });
 
-window.toggleSenha = function(id) {
+window.toggleSenha = function (id) {
   const c = document.getElementById(id);
-  c.type = c.type === 'password' ? 'text' : 'password';
-}
+  c.type = c.type === "password" ? "text" : "password";
+};
 
-// ===== CADASTRO =====
-window.register = async function() {
+// ===== CADASTRO FIREBASE =====
+window.register = async function () {
   const registerBtn = document.getElementById("registerBtn");
   showMessage("registerMsg", "");
   registerBtn.classList.add("loading");
@@ -1341,174 +1393,197 @@ window.register = async function() {
     return;
   }
 
-  const u = document.getElementById("newUser").value.trim();
-  const p = document.getElementById("newPass").value.trim();
-  const e = document.getElementById("newEmail").value.trim();
+  const username = document.getElementById("newUser").value.trim();
+  const email = document.getElementById("newEmail").value.trim();
+  const password = document.getElementById("newPass").value.trim();
 
-  if (!u || !p || !e) {
+  if (!username || !email || !password) {
     showMessage("registerMsg", "Preencha todos os campos", "error");
     registerBtn.classList.remove("loading");
     registerBtn.disabled = false;
     return;
   }
 
+  if (username.length < 3) {
+    showMessage("registerMsg", "Usuário precisa ter pelo menos 3 caracteres", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
+  if (password.length < 6) {
+    showMessage("registerMsg", "A senha precisa ter pelo menos 6 caracteres", "error");
+    registerBtn.classList.remove("loading");
+    registerBtn.disabled = false;
+    return;
+  }
+
   try {
-    await apiCall('/register', {
-      method: 'POST',
-      body: { user: u, email: e, pass: p }
+    const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+    const firebaseUser = userCredential.user;
+
+    await setDoc(doc(db, "users", firebaseUser.uid), {
+      user: username,
+      email,
+      role: "user",
+      bio: "",
+      avatar: "",
+      score: 0,
+      flies: 0,
+      isBanned: false,
+      createdAt: serverTimestamp()
     });
-    
+
+    currentUid = firebaseUser.uid;
+    currentUser = (await getDoc(doc(db, "users", currentUid))).data();
     lastRegister = now;
-    showMessage("registerMsg", "✅ Conta criada! Redirecionando...", "success");
-    
-    setTimeout(() => {
-      mostrarLogin();
-      registerBtn.classList.remove("loading");
-      registerBtn.disabled = false;
-    }, 1500);
+
+    showMessage("registerMsg", "✅ Conta criada com sucesso!", "success");
+    setTimeout(() => abrirSistema(), 800);
   } catch (err) {
-    showMessage("registerMsg", err.message, "error");
+    showMessage("registerMsg", traduzErroFirebase(err), "error");
+  } finally {
     registerBtn.classList.remove("loading");
     registerBtn.disabled = false;
   }
+};
+
+function traduzErroFirebase(err) {
+  const code = err?.code || "";
+  if (code.includes("email-already-in-use")) return "Este email já está cadastrado";
+  if (code.includes("invalid-email")) return "Email inválido";
+  if (code.includes("weak-password")) return "Senha fraca demais";
+  if (code.includes("user-not-found") || code.includes("wrong-password") || code.includes("invalid-credential")) return "Email ou senha incorretos";
+  if (code.includes("network-request-failed")) return "Erro de internet/conexão";
+  return err?.message || "Erro desconhecido";
 }
 
-window.mostrarCadastro = function() {
+window.mostrarCadastro = function () {
   showMessage("loginMsg", "");
   showMessage("registerMsg", "");
   document.getElementById("loginArea").style.display = "none";
   document.getElementById("cadastroArea").style.display = "block";
-}
+};
 
-window.mostrarLogin = function() {
+window.mostrarLogin = function () {
   showMessage("loginMsg", "");
   showMessage("registerMsg", "");
   document.getElementById("loginArea").style.display = "block";
   document.getElementById("cadastroArea").style.display = "none";
-}
+};
 
-// ===== LOGIN =====
-window.login = async function() {
+// ===== LOGIN FIREBASE =====
+window.login = async function () {
   const loginBtn = document.getElementById("loginBtn");
   showMessage("loginMsg", "");
   loginBtn.classList.add("loading");
   loginBtn.disabled = true;
 
-  const u = document.getElementById("loginUser").value.trim();
-  const p = document.getElementById("loginPass").value.trim();
+  const email = document.getElementById("loginUser").value.trim();
+  const password = document.getElementById("loginPass").value.trim();
 
-  if (!u || !p) {
-    showMessage("loginMsg", "Preencha usuário e senha", "error");
+  if (!email || !password) {
+    showMessage("loginMsg", "Preencha email e senha", "error");
     loginBtn.classList.remove("loading");
     loginBtn.disabled = false;
     return;
   }
 
   try {
-    const data = await apiCall('/login', {
-      method: 'POST',
-      body: { user: u, pass: p }
-    });
-    
-    authToken = data.token;
-    localStorage.setItem('spiderToken', authToken);
-    currentUser = data.user;
-    
+    const userCredential = await signInWithEmailAndPassword(auth, email, password);
+    currentUid = userCredential.user.uid;
+    const snap = await getDoc(doc(db, "users", currentUid));
+    currentUser = snap.data();
+
+    if (currentUser?.isBanned) {
+      await signOut(auth);
+      showMessage("loginMsg", "Conta banida", "error");
+      return;
+    }
+
     abrirSistema();
-    loginBtn.classList.remove("loading");
-    loginBtn.disabled = false;
   } catch (err) {
-    showMessage("loginMsg", err.message, "error");
+    showMessage("loginMsg", traduzErroFirebase(err), "error");
+  } finally {
     loginBtn.classList.remove("loading");
     loginBtn.disabled = false;
   }
-}
+};
 
 // ===== SISTEMA =====
 function abrirSistema() {
+  if (!currentUser) return;
+
   document.getElementById("authBox").style.display = "none";
   document.getElementById("dashboard").style.display = "block";
-  
-  const isAdmin = currentUser?.role === 'admin';
-  document.getElementById("userText").innerHTML = 
+
+  document.getElementById("userText").innerHTML =
     `Bem-vindo, <span class="adminUser">${sanitizeHTML(currentUser.user)}</span>` +
-    (isAdmin ? ' <span class="badge">ADMIN</span>' : '');
-  
-  if (isAdmin) {
-    document.getElementById("adminBtn").style.display = "inline-block";
-  }
-  
+    (isAdmin() ? ' <span class="badge">ADMIN</span>' : "");
+
+  document.getElementById("adminBtn").style.display = isAdmin() ? "inline-block" : "none";
+
   carregarPerfil();
   carregarRanking();
   carregarChat();
+  abrirPainel("home");
 }
 
-window.logout = function() {
-  authToken = null;
+window.logout = async function () {
+  await signOut(auth);
   currentUser = null;
-  localStorage.removeItem('spiderToken');
+  currentUid = null;
   document.getElementById("dashboard").style.display = "none";
   document.getElementById("authBox").style.display = "block";
   document.getElementById("adminBtn").style.display = "none";
-}
+};
 
 // ===== PERFIL =====
 async function carregarPerfil() {
-  try {
-    const user = await apiCall('/profile');
-    
-    document.getElementById("perfilUser").textContent = user.user;
-    document.getElementById("bioInput").value = user.bio || '';
-    
-    const avatarImg = document.getElementById("avatar");
-    if (user.avatar) {
-      avatarImg.src = user.avatar;
-    } else {
-      avatarImg.src = getDefaultAvatar(user.user);
-    }
-    
-    document.getElementById("stats").innerHTML = `
-      🏆 Score: ${user.score || 0} | 🪰 Moscas: ${user.flies || 0}
-    `;
-  } catch (err) {
-    console.error('Erro ao carregar perfil:', err);
-  }
+  if (!requireLogin()) return;
+  const userSnap = await getDoc(doc(db, "users", currentUid));
+  currentUser = userSnap.data();
+
+  document.getElementById("perfilUser").textContent = currentUser.user || "";
+  document.getElementById("bioInput").value = currentUser.bio || "";
+
+  const avatarImg = document.getElementById("avatar");
+  avatarImg.src = currentUser.avatar || getDefaultAvatar(currentUser.user);
+
+  document.getElementById("stats").innerHTML = `🏆 Score: ${currentUser.score || 0} | 🪰 Moscas: ${currentUser.flies || 0}`;
 }
 
-window.salvarPerfil = async function() {
+window.salvarPerfil = async function () {
+  if (!requireLogin()) return;
   const bio = document.getElementById("bioInput").value;
-  
+
   try {
-    await apiCall('/profile', {
-      method: 'PUT',
-      body: { bio }
-    });
+    await updateDoc(doc(db, "users", currentUid), { bio });
+    currentUser.bio = bio;
     showMessage("profileMsg", "✅ Perfil salvo!", "success");
   } catch (err) {
-    showMessage("profileMsg", "Erro ao salvar: " + err.message, "error");
+    showMessage("profileMsg", "Erro ao salvar perfil", "error");
   }
-}
+};
 
-// Upload de avatar (base64)
-document.getElementById("avatarUpload")?.addEventListener("change", async function(e) {
+document.getElementById("avatarUpload")?.addEventListener("change", async function (e) {
+  if (!requireLogin()) return;
   const file = e.target.files[0];
   if (!file) return;
-  
+
   if (file.size > 500000) {
     showMessage("profileMsg", "Imagem muito grande (máx 500KB)", "error");
     return;
   }
-  
+
   const reader = new FileReader();
-  reader.onload = async function(e) {
+  reader.onload = async function (ev) {
     try {
-      await apiCall('/profile', {
-        method: 'PUT',
-        body: { avatar: e.target.result }
-      });
-      document.getElementById("avatar").src = e.target.result;
+      await updateDoc(doc(db, "users", currentUid), { avatar: ev.target.result });
+      currentUser.avatar = ev.target.result;
+      document.getElementById("avatar").src = ev.target.result;
       showMessage("profileMsg", "✅ Avatar atualizado!", "success");
-    } catch (err) {
+    } catch {
       showMessage("profileMsg", "Erro ao atualizar avatar", "error");
     }
   };
@@ -1517,283 +1592,276 @@ document.getElementById("avatarUpload")?.addEventListener("change", async functi
 
 // ===== RANKING =====
 async function carregarRanking() {
+  if (!requireLogin()) return;
   try {
-    const users = await apiCall('/ranking');
+    const q = query(collection(db, "users"), orderBy("score", "desc"), limit(50));
+    const snap = await getDocs(q);
+    const users = snap.docs.map(d => ({ id: d.id, ...d.data() })).filter(u => !u.isBanned);
     const list = document.getElementById("rankingList");
-    
+
     list.innerHTML = users.map((u, i) => `
       <div>
         <span>#${i + 1} ${sanitizeHTML(u.user)}</span>
         <span>🏆 ${u.score || 0} | 🪰 ${u.flies || 0}</span>
       </div>
-    `).join('');
+    `).join("");
   } catch (err) {
-    console.error('Erro ao carregar ranking:', err);
+    console.error("Erro ao carregar ranking:", err);
   }
 }
 
-// ===== CHAT =====
+// ===== CHAT FIREBASE =====
 async function carregarChat() {
+  if (!requireLogin()) return;
   try {
-    const messages = await apiCall('/chat');
+    const q = query(collection(db, "chat"), orderBy("createdAt", "asc"), limit(100));
+    const snap = await getDocs(q);
+    const messages = snap.docs.map(d => ({ id: d.id, ...d.data() }));
     renderChat(messages);
   } catch (err) {
-    console.error('Erro ao carregar chat:', err);
+    console.error("Erro ao carregar chat:", err);
   }
 }
 
 function renderChat(messages) {
   const chatDiv = document.getElementById("chatMessages");
   chatDiv.innerHTML = messages.map(msg => {
-    const isOwn = msg.user === currentUser?.user;
-    const isAdmin = msg.role === 'admin';
-    
+    const own = msg.uid === currentUid || msg.user === currentUser?.user;
+    const admin = msg.role === "admin";
     return `
-      <div class="chat-msg ${isOwn ? 'own' : ''} ${isAdmin ? 'admin' : ''}">
+      <div class="chat-msg ${own ? "own" : ""} ${admin ? "admin" : ""}">
         <div class="chat-msg-header">
-          <span class="chat-msg-user ${isAdmin ? 'adminUser' : ''}">
-            ${sanitizeHTML(msg.user)} ${isAdmin ? '👑' : ''}
+          <span class="chat-msg-user ${admin ? "adminUser" : ""}">
+            ${sanitizeHTML(msg.user)} ${admin ? "👑" : ""}
           </span>
-          <span class="chat-msg-time">${new Date(msg.createdAt).toLocaleTimeString()}</span>
+          <span class="chat-msg-time">${formatDate(msg.createdAt)}</span>
         </div>
         <div class="chat-msg-content">${sanitizeHTML(msg.content)}</div>
       </div>
     `;
-  }).join('');
-  
+  }).join("");
   chatDiv.scrollTop = chatDiv.scrollHeight;
 }
 
-window.sendChat = async function() {
+window.sendChat = async function () {
+  if (!requireLogin()) return;
   const input = document.getElementById("chatInput");
   const content = input.value.trim();
-  
   if (!content) return;
-  
+
   try {
-    await apiCall('/chat', {
-      method: 'POST',
-      body: { content }
+    await addDoc(collection(db, "chat"), {
+      uid: currentUid,
+      user: currentUser.user,
+      role: currentUser.role || "user",
+      content,
+      createdAt: serverTimestamp()
     });
-    
-    input.value = '';
+    input.value = "";
     await carregarChat();
   } catch (err) {
-    showNotification(err.message, 'error');
+    showNotification("Erro ao enviar mensagem", "error");
   }
-}
+};
 
-window.toggleChat = function() {
+window.toggleChat = function () {
   const panel = document.getElementById("chatPanel");
-  const isHidden = panel.style.display === 'none' || panel.classList.contains('hidden');
-  
-  if (isHidden) {
-    panel.style.display = 'flex';
-    panel.classList.remove('hidden');
+  const hidden = panel.style.display === "none" || panel.classList.contains("hidden");
+
+  if (hidden) {
+    panel.style.display = "flex";
+    panel.classList.remove("hidden");
     carregarChat();
   } else {
-    panel.style.display = 'none';
-    panel.classList.add('hidden');
+    panel.style.display = "none";
+    panel.classList.add("hidden");
   }
-}
+};
 
-// ===== ADMIN =====
-window.abrirPainel = async function(painel) {
-  document.querySelectorAll('.panel').forEach(p => p.style.display = 'none');
-  document.getElementById(painel).style.display = 'block';
-  
-  if (painel === 'admin') {
+// ===== PAINÉIS =====
+window.abrirPainel = async function (painel) {
+  document.querySelectorAll(".panel").forEach(p => p.style.display = "none");
+  const el = document.getElementById(painel);
+  if (el) el.style.display = "block";
+
+  if (painel === "admin") {
+    if (!isAdmin()) {
+      showNotification("Acesso negado", "error");
+      abrirPainel("home");
+      return;
+    }
     await carregarAdminStats();
     adminShowUsers();
   }
-  if (painel === 'forum') {
-    carregarForum();
-  }
-  if (painel === 'ranking') {
-    carregarRanking();
-  }
-}
 
+  if (painel === "forum") carregarForum();
+  if (painel === "ranking") carregarRanking();
+};
+
+// ===== ADMIN FIREBASE =====
 async function carregarAdminStats() {
-  try {
-    const stats = await apiCall('/admin/stats');
-    document.getElementById("statUsers").textContent = stats.users;
-    document.getElementById("statMessages").textContent = stats.messages;
-    document.getElementById("statBanned").textContent = stats.banned;
-    document.getElementById("statTopics").textContent = stats.topics || 0;
-    document.getElementById("statReplies").textContent = stats.replies || 0;
-    
-    // Calcula moscas totais
-    const users = await apiCall('/admin/users');
-    const totalFlies = users.reduce((sum, u) => sum + (u.flies || 0), 0);
-    document.getElementById("statFlies").textContent = totalFlies;
-  } catch (err) {
-    console.error('Erro ao carregar stats:', err);
-  }
+  if (!isAdmin()) return;
+
+  const usersSnap = await getDocs(collection(db, "users"));
+  const chatSnap = await getDocs(collection(db, "chat"));
+  const topicsSnap = await getDocs(collection(db, "forumTopics"));
+  const repliesSnap = await getDocs(collection(db, "forumReplies"));
+
+  const users = usersSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+
+  document.getElementById("statUsers").textContent = users.length;
+  document.getElementById("statMessages").textContent = chatSnap.size;
+  document.getElementById("statBanned").textContent = users.filter(u => u.isBanned).length;
+  document.getElementById("statTopics").textContent = topicsSnap.size;
+  document.getElementById("statReplies").textContent = repliesSnap.size;
+  document.getElementById("statFlies").textContent = users.reduce((s, u) => s + (u.flies || 0), 0);
 }
 
-async function adminShowUsers() {
-  document.getElementById("adminUsersSection").style.display = 'block';
-  document.getElementById("adminAnnouncementSection").style.display = 'none';
-  document.getElementById("adminAuditSection").style.display = 'none';
-  document.getElementById("adminCategorySection").style.display = 'none';
-  
-  try {
-    const users = await apiCall('/admin/users');
-    window.allUsers = users; // Guarda para filtro
-    renderUserList(users);
-  } catch (err) {
-    console.error('Erro ao carregar usuários:', err);
-  }
-}
+window.adminShowUsers = async function () {
+  if (!isAdmin()) return;
+  document.getElementById("adminUsersSection").style.display = "block";
+  document.getElementById("adminAnnouncementSection").style.display = "none";
+  document.getElementById("adminAuditSection").style.display = "none";
+  document.getElementById("adminCategorySection").style.display = "none";
+
+  const snap = await getDocs(collection(db, "users"));
+  allUsers = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  renderUserList(allUsers);
+};
 
 function renderUserList(users) {
   const list = document.getElementById("userList");
-  
   list.innerHTML = users.map(u => `
-    <div class="user-item ${u.isBanned ? 'banned' : ''} ${u.role}">
+    <div class="user-item ${u.isBanned ? "banned" : ""} ${u.role || "user"}">
       <div class="user-info">
         <img src="${u.avatar || getDefaultAvatar(u.user)}" class="user-item-avatar">
         <div>
           <div class="user-item-name">${sanitizeHTML(u.user)}</div>
-          <div class="user-item-role">${u.role} ${u.isBanned ? '(BANIDO)' : ''}</div>
+          <div class="user-item-role">${u.role || "user"} ${u.isBanned ? "(BANIDO)" : ""}</div>
         </div>
       </div>
       <div class="user-actions">
-        ${u.role !== 'admin' ? `
-          <button onclick="banUser('${u._id}', ${!u.isBanned})" class="${u.isBanned ? 'success' : 'danger'}">
-            ${u.isBanned ? 'Desbanir' : 'Banir'}
+        ${u.role !== "admin" ? `
+          <button onclick="banUser('${u.id}', ${!u.isBanned})" class="${u.isBanned ? "success" : "danger"}">
+            ${u.isBanned ? "Desbanir" : "Banir"}
           </button>
-          <button onclick="promoteUser('${u._id}', '${u.role === 'user' ? 'moderator' : 'user'}')" class="secondary">
-            ${u.role === 'user' ? 'Promover' : 'Rebaixar'}
+          <button onclick="promoteUser('${u.id}', '${u.role === "user" ? "moderator" : "user"}')" class="secondary">
+            ${u.role === "user" ? "Promover" : "Rebaixar"}
           </button>
-        ` : ''}
+        ` : ""}
       </div>
     </div>
-  `).join('');
+  `).join("");
 }
 
-function filterUsers() {
+window.filterUsers = function () {
   const search = document.getElementById("userSearchInput").value.toLowerCase();
-  const filtered = window.allUsers.filter(u => 
-    u.user.toLowerCase().includes(search)
-  );
-  renderUserList(filtered);
-}
+  renderUserList(allUsers.filter(u => String(u.user || "").toLowerCase().includes(search)));
+};
 
-async function banUser(userId, ban) {
-  try {
-    await apiCall(`/admin/ban/${userId}`, {
-      method: 'POST',
-      body: { ban }
-    });
-    showNotification(ban ? 'Usuário banido' : 'Usuário desbanido');
-    adminShowUsers();
-    carregarAdminStats();
-  } catch (err) {
-    showNotification(err.message, 'error');
-  }
-}
+window.banUser = async function (userId, ban) {
+  if (!isAdmin()) return;
+  await updateDoc(doc(db, "users", userId), { isBanned: ban });
+  await addDoc(collection(db, "audit"), {
+    user: currentUser.user,
+    action: ban ? "Baniu usuário" : "Desbaniu usuário",
+    createdAt: serverTimestamp()
+  });
+  showNotification(ban ? "Usuário banido" : "Usuário desbanido");
+  adminShowUsers();
+  carregarAdminStats();
+};
 
-async function promoteUser(userId, role) {
-  try {
-    await apiCall(`/admin/role/${userId}`, {
-      method: 'POST',
-      body: { role }
-    });
-    showNotification('Cargo atualizado');
-    adminShowUsers();
-  } catch (err) {
-    showNotification(err.message, 'error');
-  }
-}
+window.promoteUser = async function (userId, role) {
+  if (!isAdmin()) return;
+  await updateDoc(doc(db, "users", userId), { role });
+  await addDoc(collection(db, "audit"), {
+    user: currentUser.user,
+    action: `Alterou cargo para ${role}`,
+    createdAt: serverTimestamp()
+  });
+  showNotification("Cargo atualizado");
+  adminShowUsers();
+};
 
-function adminShowAnnouncement() {
-  document.getElementById("adminUsersSection").style.display = 'none';
-  document.getElementById("adminAnnouncementSection").style.display = 'block';
-  document.getElementById("adminAuditSection").style.display = 'none';
-  document.getElementById("adminCategorySection").style.display = 'none';
-}
+window.adminShowAnnouncement = function () {
+  document.getElementById("adminUsersSection").style.display = "none";
+  document.getElementById("adminAnnouncementSection").style.display = "block";
+  document.getElementById("adminAuditSection").style.display = "none";
+  document.getElementById("adminCategorySection").style.display = "none";
+};
 
-async function sendAnnouncement() {
-  const text = document.getElementById("announcementText").value;
+window.sendAnnouncement = async function () {
+  if (!isAdmin()) return;
+  const text = document.getElementById("announcementText").value.trim();
   if (!text) return;
-  
-  try {
-    await apiCall('/chat', {
-      method: 'POST',
-      body: { content: '[📢 ANÚNCIO] ' + text }
-    });
-    showNotification('Anúncio enviado!');
-    document.getElementById("announcementText").value = '';
-  } catch (err) {
-    showNotification(err.message, 'error');
-  }
-}
 
-function adminShowAudit() {
-  document.getElementById("adminUsersSection").style.display = 'none';
-  document.getElementById("adminAnnouncementSection").style.display = 'none';
-  document.getElementById("adminAuditSection").style.display = 'block';
-  document.getElementById("adminCategorySection").style.display = 'none';
+  await addDoc(collection(db, "chat"), {
+    uid: currentUid,
+    user: currentUser.user,
+    role: "admin",
+    content: "[📢 ANÚNCIO] " + text,
+    createdAt: serverTimestamp()
+  });
+  showNotification("Anúncio enviado!");
+  document.getElementById("announcementText").value = "";
+};
+
+window.adminShowAudit = function () {
+  document.getElementById("adminUsersSection").style.display = "none";
+  document.getElementById("adminAnnouncementSection").style.display = "none";
+  document.getElementById("adminAuditSection").style.display = "block";
+  document.getElementById("adminCategorySection").style.display = "none";
   carregarAudit();
-}
+};
 
 async function carregarAudit() {
-  try {
-    const logs = await apiCall('/admin/audit');
-    const logDiv = document.getElementById("auditLog");
-    
-    logDiv.innerHTML = logs.map(log => `
-      <div class="audit-entry">
-        <span class="audit-action">${sanitizeHTML(log.action)}</span>
-        <span>por ${sanitizeHTML(log.user)}</span>
-        <span class="audit-time">${new Date(log.createdAt).toLocaleString()}</span>
-      </div>
-    `).join('');
-  } catch (err) {
-    console.error('Erro ao carregar audit:', err);
-  }
+  if (!isAdmin()) return;
+  const q = query(collection(db, "audit"), orderBy("createdAt", "desc"), limit(50));
+  const snap = await getDocs(q);
+  const logs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  document.getElementById("auditLog").innerHTML = logs.map(log => `
+    <div class="audit-entry">
+      <span class="audit-action">${sanitizeHTML(log.action)}</span>
+      <span>por ${sanitizeHTML(log.user)}</span>
+      <span class="audit-time">${formatDate(log.createdAt)}</span>
+    </div>
+  `).join("");
 }
 
-async function adminClearChat() {
-  if (!confirm('Tem certeza que deseja limpar todo o chat?')) return;
-  
-  try {
-    await apiCall('/admin/chat', { method: 'DELETE' });
-    showNotification('Chat limpo!');
-    carregarChat();
-    carregarAdminStats();
-  } catch (err) {
-    showNotification(err.message, 'error');
-  }
-}
+window.adminClearChat = async function () {
+  if (!isAdmin()) return;
+  if (!confirm("Tem certeza que deseja limpar todo o chat?")) return;
+
+  const snap = await getDocs(collection(db, "chat"));
+  await Promise.all(snap.docs.map(d => deleteDoc(doc(db, "chat", d.id))));
+  showNotification("Chat limpo!");
+  carregarChat();
+  carregarAdminStats();
+};
 
 // ===== JOGO =====
-function toggleGame() {
+window.toggleGame = function () {
   const modal = document.getElementById("gameModal");
-  const isVisible = modal.style.display === 'block';
-  
-  if (isVisible) {
-    modal.style.display = 'none';
+  const visible = modal.style.display === "block";
+
+  if (visible) {
+    modal.style.display = "none";
     stopGame();
   } else {
-    modal.style.display = 'block';
+    modal.style.display = "block";
     startGame();
   }
-}
-
-let gameInterval;
-let score = 0;
+};
 
 function startGame() {
   const gameCanvas = document.getElementById("modalGameCanvas");
   const gameCtx = gameCanvas.getContext("2d");
-  
+
   let gameSpider = { x: 200, y: 110, size: 20 };
   let flies = [];
   score = 0;
-  
+
   function spawnFly() {
     flies.push({
       x: Math.random() * (gameCanvas.width - 20) + 10,
@@ -1801,30 +1869,31 @@ function startGame() {
       size: 10
     });
   }
-  
+
   for (let i = 0; i < 5; i++) spawnFly();
-  
+
   gameCanvas.onmousemove = (e) => {
     const rect = gameCanvas.getBoundingClientRect();
     gameSpider.x = e.clientX - rect.left;
     gameSpider.y = e.clientY - rect.top;
   };
-  
-  function gameLoop() {
-    gameCtx.fillStyle = '#000';
+
+  clearInterval(gameInterval);
+  gameInterval = setInterval(() => {
+    gameCtx.fillStyle = "#000";
     gameCtx.fillRect(0, 0, gameCanvas.width, gameCanvas.height);
-    
-    gameCtx.fillStyle = '#00ffc8';
+
+    gameCtx.fillStyle = "#00ffc8";
     gameCtx.beginPath();
     gameCtx.arc(gameSpider.x, gameSpider.y, gameSpider.size, 0, Math.PI * 2);
     gameCtx.fill();
-    
-    gameCtx.fillStyle = '#ff4444';
+
+    gameCtx.fillStyle = "#ff4444";
     flies.forEach((fly, index) => {
       gameCtx.beginPath();
       gameCtx.arc(fly.x, fly.y, fly.size, 0, Math.PI * 2);
       gameCtx.fill();
-      
+
       const dist = Math.hypot(gameSpider.x - fly.x, gameSpider.y - fly.y);
       if (dist < gameSpider.size + fly.size) {
         flies.splice(index, 1);
@@ -1833,388 +1902,352 @@ function startGame() {
         showScorePopup(10);
       }
     });
-    
+
     if (flies.length < 3) spawnFly();
-  }
-  
-  gameInterval = setInterval(gameLoop, 1000 / 30);
+  }, 1000 / 30);
 }
 
-function stopGame() {
+async function stopGame() {
   clearInterval(gameInterval);
-  
-  if (score > 0 && currentUser) {
-    apiCall('/score', {
-      method: 'POST',
-      body: { points: score }
-    }).then(() => {
-      carregarPerfil();
-      carregarRanking();
-    }).catch(console.error);
+  if (score > 0 && currentUid) {
+    await updateDoc(doc(db, "users", currentUid), {
+      score: increment(score),
+      flies: increment(Math.floor(score / 10))
+    });
+    carregarPerfil();
+    carregarRanking();
   }
 }
 
 function showScorePopup(points) {
-  const popup = document.createElement('div');
-  popup.className = 'score-popup';
+  const popup = document.createElement("div");
+  popup.className = "score-popup";
   popup.textContent = `+${points}`;
   document.body.appendChild(popup);
   setTimeout(() => popup.remove(), 1000);
 }
 
-
-// ===== FÓRUM =====
-let forumCurrentCategory = null;
-let forumCurrentTopic = null;
-let forumCurrentPage = 1;
-
+// ===== FÓRUM FIREBASE =====
 function forumShowView(view) {
-  ['categories','topics','topic','newTopic'].forEach(v => {
-    document.getElementById('forumView-' + v).style.display = 'none';
+  ["categories", "topics", "topic", "newTopic"].forEach(v => {
+    document.getElementById("forumView-" + v).style.display = "none";
   });
-  document.getElementById('forumView-' + view).style.display = 'block';
+  document.getElementById("forumView-" + view).style.display = "block";
 }
 
 async function carregarForum() {
-  forumShowView('categories');
-  try {
-    const cats = await apiCall('/forum/categories');
-    const list = document.getElementById('forumCategoryList');
-    if (cats.length === 0) {
-      list.innerHTML = '<p style="color:#666;text-align:center">Nenhuma categoria criada ainda.' +
-        (currentUser?.role === 'admin' ? ' Crie uma no painel Admin.' : '') + '</p>';
-      return;
-    }
-    list.innerHTML = cats.map(cat => `
-      <div class="forum-category-card" onclick="forumOpenCategory('${cat._id}','${sanitizeHTML(cat.name)}','${sanitizeHTML(cat.icon)}')">
-        <span class="forum-category-icon">${cat.icon}</span>
+  forumShowView("categories");
+  const q = query(collection(db, "forumCategories"), orderBy("order", "asc"));
+  const snap = await getDocs(q);
+  const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const list = document.getElementById("forumCategoryList");
+
+  if (cats.length === 0) {
+    list.innerHTML = `<p style="color:#666;text-align:center">Nenhuma categoria criada ainda.${isAdmin() ? " Crie uma no painel Admin." : ""}</p>`;
+    return;
+  }
+
+  const topicsSnap = await getDocs(collection(db, "forumTopics"));
+  const topics = topicsSnap.docs.map(d => d.data());
+
+  list.innerHTML = cats.map(cat => {
+    const count = topics.filter(t => t.categoryId === cat.id).length;
+    return `
+      <div class="forum-category-card" onclick="forumOpenCategory('${cat.id}','${sanitizeHTML(cat.name)}','${sanitizeHTML(cat.icon || "💬")}')">
+        <span class="forum-category-icon">${sanitizeHTML(cat.icon || "💬")}</span>
         <div class="forum-category-info">
           <div class="forum-category-name">${sanitizeHTML(cat.name)}</div>
-          <div class="forum-category-desc">${sanitizeHTML(cat.description)}</div>
+          <div class="forum-category-desc">${sanitizeHTML(cat.description || "")}</div>
         </div>
-        <span class="forum-category-count">${cat.topicCount} tópico${cat.topicCount !== 1 ? 's' : ''}</span>
+        <span class="forum-category-count">${count} tópico${count !== 1 ? "s" : ""}</span>
       </div>
-    `).join('');
-  } catch (err) {
-    console.error('Erro ao carregar fórum:', err);
-  }
+    `;
+  }).join("");
 }
 
-function forumShowCategories() {
+window.forumShowCategories = function () {
   forumCurrentCategory = null;
   forumCurrentTopic = null;
   carregarForum();
-}
+};
 
-async function forumOpenCategory(id, name, icon) {
+window.forumOpenCategory = async function (id, name, icon) {
   forumCurrentCategory = { id, name, icon };
-  forumCurrentPage = 1;
-  document.getElementById('forumCatTitle').textContent = icon + ' ' + name;
-  forumShowView('topics');
+  document.getElementById("forumCatTitle").textContent = icon + " " + name;
+  forumShowView("topics");
   await forumLoadTopics();
-}
+};
 
-async function forumLoadTopics(page = 1) {
-  forumCurrentPage = page;
-  try {
-    const data = await apiCall(`/forum/topics?category=${forumCurrentCategory.id}&page=${page}&limit=15`);
-    const list = document.getElementById('forumTopicList');
-    
-    if (data.topics.length === 0) {
-      list.innerHTML = '<p style="color:#666;text-align:center;padding:20px">Nenhum tópico ainda. Seja o primeiro!</p>';
-    } else {
-      list.innerHTML = data.topics.map(t => `
-        <div class="forum-topic-item ${t.pinned ? 'pinned' : ''} ${t.locked ? 'locked' : ''}"
-             onclick="forumOpenTopic('${t._id}')">
-          <div class="forum-topic-header">
-            <span class="forum-topic-title">${sanitizeHTML(t.title)}</span>
-            <span class="forum-topic-badges">
-              ${t.pinned ? '<span class="forum-badge pin">📌 Fixado</span>' : ''}
-              ${t.locked ? '<span class="forum-badge lock">🔒</span>' : ''}
-            </span>
-          </div>
-          <div class="forum-topic-meta">
-            <span>por <strong style="color:#00ffc8">${sanitizeHTML(t.author)}</strong></span>
-            <span>💬 ${t.replyCount}</span>
-            <span>👁 ${t.views}</span>
-            <span>${new Date(t.updatedAt).toLocaleDateString('pt-BR')}</span>
-          </div>
-        </div>
-      `).join('');
-    }
+async function forumLoadTopics() {
+  const q = query(
+    collection(db, "forumTopics"),
+    where("categoryId", "==", forumCurrentCategory.id),
+    orderBy("updatedAt", "desc")
+  );
+  const snap = await getDocs(q);
+  const topics = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const list = document.getElementById("forumTopicList");
 
-    // Paginação
-    const pag = document.getElementById('forumTopicPagination');
-    pag.innerHTML = '';
-    for (let i = 1; i <= data.pages; i++) {
-      const btn = document.createElement('button');
-      btn.textContent = i;
-      btn.className = i === page ? 'success' : 'secondary';
-      btn.style.cssText = 'padding:6px 12px;font-size:12px;min-width:36px';
-      btn.onclick = () => forumLoadTopics(i);
-      pag.appendChild(btn);
-    }
-  } catch (err) {
-    console.error('Erro ao carregar tópicos:', err);
+  if (topics.length === 0) {
+    list.innerHTML = '<p style="color:#666;text-align:center;padding:20px">Nenhum tópico ainda. Seja o primeiro!</p>';
+    return;
   }
-}
 
-function forumShowTopics() {
-  forumCurrentTopic = null;
-  forumShowView('topics');
-  forumLoadTopics(forumCurrentPage);
-}
-
-async function forumOpenTopic(id) {
-  try {
-    const topic = await apiCall(`/forum/topics/${id}`);
-    forumCurrentTopic = topic;
-    document.getElementById('forumTopicTitle').textContent = topic.title;
-
-    const isModAdmin = ['admin','moderator'].includes(currentUser?.role);
-    document.getElementById('forumTopicBody').innerHTML = `
-      <div class="forum-topic-body-content">${sanitizeHTML(topic.content)}</div>
-      <div class="forum-topic-body-meta">
-        <span>por <strong style="color:#00ffc8">${sanitizeHTML(topic.author)}</strong></span>
-        <span>${new Date(topic.createdAt).toLocaleString('pt-BR')}</span>
-        <span>👁 ${topic.views} views</span>
-        ${topic.locked ? '<span style="color:#ff4444">🔒 Tópico bloqueado</span>' : ''}
-        ${topic.pinned ? '<span style="color:#ffd700">📌 Fixado</span>' : ''}
+  list.innerHTML = topics.map(t => `
+    <div class="forum-topic-item ${t.pinned ? "pinned" : ""} ${t.locked ? "locked" : ""}" onclick="forumOpenTopic('${t.id}')">
+      <div class="forum-topic-header">
+        <span class="forum-topic-title">${sanitizeHTML(t.title)}</span>
+        <span class="forum-topic-badges">
+          ${t.pinned ? '<span class="forum-badge pin">📌 Fixado</span>' : ""}
+          ${t.locked ? '<span class="forum-badge lock">🔒</span>' : ""}
+        </span>
       </div>
-      ${isModAdmin ? `
-      <div class="forum-mod-actions">
-        <button onclick="forumTogglePin('${topic._id}')" class="secondary" style="font-size:11px;padding:5px 10px">
-          ${topic.pinned ? '📌 Desafixar' : '📌 Fixar'}
-        </button>
-        <button onclick="forumToggleLock('${topic._id}')" class="secondary" style="font-size:11px;padding:5px 10px">
-          ${topic.locked ? '🔓 Desbloquear' : '🔒 Bloquear'}
-        </button>
-        <button onclick="forumDeleteTopic('${topic._id}')" class="danger" style="font-size:11px;padding:5px 10px">
-          🗑️ Deletar
-        </button>
-      </div>` : ''}
-    `;
-
-    // Box de resposta
-    const replyBox = document.getElementById('forumReplyBox');
-    if (topic.locked && !isModAdmin) {
-      replyBox.innerHTML = '<p style="color:#ff4444;text-align:center">🔒 Este tópico está bloqueado.</p>';
-    } else {
-      replyBox.innerHTML = `
-        <h3 style="margin-bottom:10px">✏️ Responder</h3>
-        <textarea id="forumReplyInput" placeholder="Sua resposta..." rows="4"></textarea>
-        <button onclick="forumSendReply()" class="success" style="margin-top:8px">Enviar Resposta</button>
-      `;
-    }
-
-    forumShowView('topic');
-    await forumLoadReplies(id);
-  } catch (err) {
-    console.error('Erro ao abrir tópico:', err);
-  }
+      <div class="forum-topic-meta">
+        <span>por <strong style="color:#00ffc8">${sanitizeHTML(t.author)}</strong></span>
+        <span>💬 ${t.replyCount || 0}</span>
+        <span>👁 ${t.views || 0}</span>
+        <span>${formatDate(t.updatedAt)}</span>
+      </div>
+    </div>
+  `).join("");
 }
+
+window.forumShowTopics = function () {
+  forumCurrentTopic = null;
+  forumShowView("topics");
+  forumLoadTopics();
+};
+
+window.forumOpenTopic = async function (id) {
+  const ref = doc(db, "forumTopics", id);
+  const snap = await getDoc(ref);
+  if (!snap.exists()) return;
+
+  const topic = { id: snap.id, ...snap.data() };
+  forumCurrentTopic = topic;
+
+  await updateDoc(ref, { views: increment(1) });
+
+  document.getElementById("forumTopicTitle").textContent = topic.title;
+  document.getElementById("forumTopicBody").innerHTML = `
+    <div class="forum-topic-body-content">${sanitizeHTML(topic.content)}</div>
+    <div class="forum-topic-body-meta">
+      <span>por <strong style="color:#00ffc8">${sanitizeHTML(topic.author)}</strong></span>
+      <span>${formatDate(topic.createdAt)}</span>
+      <span>👁 ${(topic.views || 0) + 1} views</span>
+      ${topic.locked ? '<span style="color:#ff4444">🔒 Tópico bloqueado</span>' : ""}
+      ${topic.pinned ? '<span style="color:#ffd700">📌 Fixado</span>' : ""}
+    </div>
+    ${isModAdmin() ? `
+      <div class="forum-mod-actions">
+        <button onclick="forumTogglePin('${topic.id}')" class="secondary" style="font-size:11px;padding:5px 10px">${topic.pinned ? "📌 Desafixar" : "📌 Fixar"}</button>
+        <button onclick="forumToggleLock('${topic.id}')" class="secondary" style="font-size:11px;padding:5px 10px">${topic.locked ? "🔓 Desbloquear" : "🔒 Bloquear"}</button>
+        <button onclick="forumDeleteTopic('${topic.id}')" class="danger" style="font-size:11px;padding:5px 10px">🗑️ Deletar</button>
+      </div>` : ""}
+  `;
+
+  const replyBox = document.getElementById("forumReplyBox");
+  if (topic.locked && !isModAdmin()) {
+    replyBox.innerHTML = '<p style="color:#ff4444;text-align:center">🔒 Este tópico está bloqueado.</p>';
+  } else {
+    replyBox.innerHTML = `
+      <h3 style="margin-bottom:10px">✏️ Responder</h3>
+      <textarea id="forumReplyInput" placeholder="Sua resposta..." rows="4"></textarea>
+      <button onclick="forumSendReply()" class="success" style="margin-top:8px">Enviar Resposta</button>
+    `;
+  }
+
+  forumShowView("topic");
+  await forumLoadReplies(id);
+};
 
 async function forumLoadReplies(topicId) {
-  try {
-    const replies = await apiCall(`/forum/topics/${topicId}/replies`);
-    const isModAdmin = ['admin','moderator'].includes(currentUser?.role);
-    const list = document.getElementById('forumRepliesList');
+  const q = query(collection(db, "forumReplies"), where("topicId", "==", topicId), orderBy("createdAt", "asc"));
+  const snap = await getDocs(q);
+  const replies = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const list = document.getElementById("forumRepliesList");
 
-    if (replies.length === 0) {
-      list.innerHTML = '<p style="color:#666;text-align:center">Nenhuma resposta ainda.</p>';
-      return;
-    }
-
-    list.innerHTML = replies.map(r => `
-      <div class="forum-reply">
-        <div class="forum-reply-header">
-          <span class="forum-reply-author ${r.authorRole}">${sanitizeHTML(r.author)}
-            ${r.authorRole === 'admin' ? ' 👑' : r.authorRole === 'moderator' ? ' 🛡️' : ''}
-          </span>
-          <span class="forum-reply-time">${new Date(r.createdAt).toLocaleString('pt-BR')}</span>
-        </div>
-        <div class="forum-reply-content">${sanitizeHTML(r.content)}</div>
-        ${isModAdmin ? `
-        <div class="forum-reply-actions">
-          <button onclick="forumDeleteReply('${r._id}')" class="danger" style="font-size:11px;padding:4px 8px">🗑️</button>
-        </div>` : ''}
-      </div>
-    `).join('');
-  } catch (err) {
-    console.error('Erro ao carregar respostas:', err);
+  if (replies.length === 0) {
+    list.innerHTML = '<p style="color:#666;text-align:center">Nenhuma resposta ainda.</p>';
+    return;
   }
+
+  list.innerHTML = replies.map(r => `
+    <div class="forum-reply">
+      <div class="forum-reply-header">
+        <span class="forum-reply-author ${r.authorRole || "user"}">${sanitizeHTML(r.author)}
+          ${r.authorRole === "admin" ? " 👑" : r.authorRole === "moderator" ? " 🛡️" : ""}
+        </span>
+        <span class="forum-reply-time">${formatDate(r.createdAt)}</span>
+      </div>
+      <div class="forum-reply-content">${sanitizeHTML(r.content)}</div>
+      ${isModAdmin() ? `<div class="forum-reply-actions"><button onclick="forumDeleteReply('${r.id}')" class="danger" style="font-size:11px;padding:4px 8px">🗑️</button></div>` : ""}
+    </div>
+  `).join("");
 }
 
-async function forumSendReply() {
-  const input = document.getElementById('forumReplyInput');
+window.forumSendReply = async function () {
+  if (!requireLogin() || !forumCurrentTopic) return;
+  const input = document.getElementById("forumReplyInput");
   const content = input?.value?.trim();
   if (!content) return;
 
-  try {
-    await apiCall(`/forum/topics/${forumCurrentTopic._id}/replies`, {
-      method: 'POST',
-      body: { content }
-    });
-    input.value = '';
-    await forumLoadReplies(forumCurrentTopic._id);
-    // Atualiza contagem
-    document.querySelector('#forumTopicBody .forum-topic-body-content') && forumOpenTopic(forumCurrentTopic._id);
-  } catch (err) {
-    showNotification(err.message, 'error');
-  }
-}
+  await addDoc(collection(db, "forumReplies"), {
+    topicId: forumCurrentTopic.id,
+    content,
+    author: currentUser.user,
+    authorRole: currentUser.role || "user",
+    createdAt: serverTimestamp()
+  });
 
-function forumShowNewTopic() {
-  document.getElementById('forumNewTitle').value = '';
-  document.getElementById('forumNewContent').value = '';
-  showMessage('forumMsg', '');
-  forumShowView('newTopic');
-}
+  await updateDoc(doc(db, "forumTopics", forumCurrentTopic.id), {
+    replyCount: increment(1),
+    updatedAt: serverTimestamp()
+  });
 
-async function forumCreateTopic() {
-  const title = document.getElementById('forumNewTitle').value.trim();
-  const content = document.getElementById('forumNewContent').value.trim();
-  if (!title || !content) {
-    showMessage('forumMsg', 'Preencha título e conteúdo', 'error');
+  input.value = "";
+  await forumLoadReplies(forumCurrentTopic.id);
+};
+
+window.forumShowNewTopic = function () {
+  document.getElementById("forumNewTitle").value = "";
+  document.getElementById("forumNewContent").value = "";
+  showMessage("forumMsg", "");
+  forumShowView("newTopic");
+};
+
+window.forumCreateTopic = async function () {
+  if (!requireLogin() || !forumCurrentCategory) return;
+
+  const title = document.getElementById("forumNewTitle").value.trim();
+  const content = document.getElementById("forumNewContent").value.trim();
+
+  if (title.length < 5) {
+    showMessage("forumMsg", "Título muito curto", "error");
     return;
   }
-  try {
-    await apiCall('/forum/topics', {
-      method: 'POST',
-      body: { category: forumCurrentCategory.id, title, content }
-    });
-    showNotification('Tópico criado!');
-    forumShowTopics();
-  } catch (err) {
-    showMessage('forumMsg', err.message, 'error');
+
+  if (content.length < 10) {
+    showMessage("forumMsg", "Conteúdo muito curto", "error");
+    return;
   }
-}
 
-async function forumTogglePin(topicId) {
-  try {
-    const r = await apiCall(`/forum/topics/${topicId}/pin`, { method: 'PATCH' });
-    showNotification(r.pinned ? 'Tópico fixado' : 'Tópico desafixado');
-    forumOpenTopic(topicId);
-  } catch (err) { showNotification(err.message, 'error'); }
-}
+  await addDoc(collection(db, "forumTopics"), {
+    categoryId: forumCurrentCategory.id,
+    title,
+    content,
+    author: currentUser.user,
+    authorRole: currentUser.role || "user",
+    pinned: false,
+    locked: false,
+    views: 0,
+    replyCount: 0,
+    createdAt: serverTimestamp(),
+    updatedAt: serverTimestamp()
+  });
 
-async function forumToggleLock(topicId) {
-  try {
-    const r = await apiCall(`/forum/topics/${topicId}/lock`, { method: 'PATCH' });
-    showNotification(r.locked ? 'Tópico bloqueado' : 'Tópico desbloqueado');
-    forumOpenTopic(topicId);
-  } catch (err) { showNotification(err.message, 'error'); }
-}
+  showMessage("forumMsg", "✅ Tópico criado!", "success");
+  forumShowTopics();
+};
 
-async function forumDeleteTopic(topicId) {
-  if (!confirm('Deletar este tópico e todas as respostas?')) return;
-  try {
-    await apiCall(`/forum/topics/${topicId}`, { method: 'DELETE' });
-    showNotification('Tópico deletado');
-    forumShowTopics();
-  } catch (err) { showNotification(err.message, 'error'); }
-}
+window.forumTogglePin = async function (id) {
+  if (!isModAdmin()) return;
+  const ref = doc(db, "forumTopics", id);
+  const snap = await getDoc(ref);
+  await updateDoc(ref, { pinned: !snap.data().pinned });
+  forumOpenTopic(id);
+};
 
-async function forumDeleteReply(replyId) {
-  if (!confirm('Deletar esta resposta?')) return;
-  try {
-    await apiCall(`/forum/replies/${replyId}`, { method: 'DELETE' });
-    showNotification('Resposta deletada');
-    forumLoadReplies(forumCurrentTopic._id);
-  } catch (err) { showNotification(err.message, 'error'); }
-}
+window.forumToggleLock = async function (id) {
+  if (!isModAdmin()) return;
+  const ref = doc(db, "forumTopics", id);
+  const snap = await getDoc(ref);
+  await updateDoc(ref, { locked: !snap.data().locked });
+  forumOpenTopic(id);
+};
 
+window.forumDeleteTopic = async function (id) {
+  if (!isModAdmin()) return;
+  if (!confirm("Deletar este tópico?")) return;
+  await deleteDoc(doc(db, "forumTopics", id));
+  forumShowTopics();
+};
 
-// ===== ADMIN CATEGORIAS FORUM =====
-function adminShowCategories() {
-  document.getElementById("adminUsersSection").style.display = 'none';
-  document.getElementById("adminAnnouncementSection").style.display = 'none';
-  document.getElementById("adminAuditSection").style.display = 'none';
-  document.getElementById("adminCategorySection").style.display = 'block';
+window.forumDeleteReply = async function (id) {
+  if (!isModAdmin()) return;
+  if (!confirm("Deletar esta resposta?")) return;
+  await deleteDoc(doc(db, "forumReplies", id));
+  if (forumCurrentTopic) {
+    await updateDoc(doc(db, "forumTopics", forumCurrentTopic.id), { replyCount: increment(-1) });
+    forumLoadReplies(forumCurrentTopic.id);
+  }
+};
+
+// ===== CATEGORIAS ADMIN =====
+window.adminShowCategories = function () {
+  if (!isAdmin()) return;
+  document.getElementById("adminUsersSection").style.display = "none";
+  document.getElementById("adminAnnouncementSection").style.display = "none";
+  document.getElementById("adminAuditSection").style.display = "none";
+  document.getElementById("adminCategorySection").style.display = "block";
   adminLoadCategories();
-}
+};
 
 async function adminLoadCategories() {
-  try {
-    const cats = await apiCall('/forum/categories');
-    const list = document.getElementById('adminCategoryList');
-    if (cats.length === 0) {
-      list.innerHTML = '<p style="color:#666">Nenhuma categoria criada.</p>';
-      return;
-    }
-    list.innerHTML = cats.map(cat => `
-      <div style="display:flex;align-items:center;gap:10px;background:#111;padding:12px;border-radius:8px;border:1px solid #333">
-        <span style="font-size:22px">${cat.icon}</span>
-        <div style="flex:1">
-          <div style="font-weight:bold">${sanitizeHTML(cat.name)}</div>
-          <div style="font-size:11px;color:#666">${sanitizeHTML(cat.description)} — ${cat.topicCount} tópico(s)</div>
-        </div>
-        <button onclick="adminDeleteCategory('${cat._id}','${sanitizeHTML(cat.name)}')" class="danger" style="font-size:11px;padding:5px 10px">🗑️</button>
+  const q = query(collection(db, "forumCategories"), orderBy("order", "asc"));
+  const snap = await getDocs(q);
+  const cats = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  const list = document.getElementById("adminCategoryList");
+
+  list.innerHTML = cats.map(cat => `
+    <div class="forum-category-card">
+      <span class="forum-category-icon">${sanitizeHTML(cat.icon || "💬")}</span>
+      <div class="forum-category-info">
+        <div class="forum-category-name">${sanitizeHTML(cat.name)}</div>
+        <div class="forum-category-desc">${sanitizeHTML(cat.description || "")}</div>
       </div>
-    `).join('');
-  } catch (err) {
-    console.error('Erro ao carregar categorias:', err);
+      <button onclick="adminDeleteCategory('${cat.id}')" class="danger" style="font-size:11px;padding:5px 10px">Deletar</button>
+    </div>
+  `).join("");
+}
+
+window.adminCreateCategory = async function () {
+  if (!isAdmin()) return;
+  const name = document.getElementById("catName").value.trim();
+  const description = document.getElementById("catDesc").value.trim();
+  const icon = document.getElementById("catIcon").value.trim() || "💬";
+
+  if (!name) {
+    showNotification("Nome obrigatório", "error");
+    return;
   }
-}
 
-async function adminCreateCategory() {
-  const name = document.getElementById('catName').value.trim();
-  const desc = document.getElementById('catDesc').value.trim();
-  const icon = document.getElementById('catIcon').value.trim() || '💬';
-  if (!name) { showNotification('Nome obrigatório', 'error'); return; }
-  try {
-    await apiCall('/forum/categories', { method: 'POST', body: { name, description: desc, icon } });
-    document.getElementById('catName').value = '';
-    document.getElementById('catDesc').value = '';
-    document.getElementById('catIcon').value = '';
-    showNotification('Categoria criada!');
-    adminLoadCategories();
-  } catch (err) { showNotification(err.message, 'error'); }
-}
+  await addDoc(collection(db, "forumCategories"), {
+    name,
+    description,
+    icon,
+    order: Date.now(),
+    createdAt: serverTimestamp()
+  });
 
-async function adminDeleteCategory(id, name) {
-  if (!confirm(`Deletar a categoria "${name}"?`)) return;
-  try {
-    await apiCall(`/forum/categories/${id}`, { method: 'DELETE' });
-    showNotification('Categoria deletada');
-    adminLoadCategories();
-  } catch (err) { showNotification(err.message, 'error'); }
-}
+  document.getElementById("catName").value = "";
+  document.getElementById("catDesc").value = "";
+  document.getElementById("catIcon").value = "";
+  showNotification("Categoria criada");
+  adminLoadCategories();
+};
 
-// ===== INICIALIZAÇÃO =====
-document.addEventListener('DOMContentLoaded', () => {
-  checkSession();
-});
+window.adminDeleteCategory = async function (id) {
+  if (!isAdmin()) return;
+  if (!confirm("Deletar categoria?")) return;
+  await deleteDoc(doc(db, "forumCategories", id));
+  adminLoadCategories();
+};
 
-
-// Firebase sessão automática
-auth.onAuthStateChanged(async (user) => {
-
-if(user){
-
-try{
-
-const userDoc = await getDoc(doc(db, "users", user.uid));
-
-if(userDoc.exists()){
-
-currentUser = userDoc.data();
-
-abrirSistema();
-
-}
-
-}catch(err){
-
-console.error(err);
-
-}
-
-}
-
-});
-
-
+// deixa algumas funções acessíveis no window
+window.carregarForum = carregarForum;
+window.carregarRanking = carregarRanking;
+window.carregarChat = carregarChat;
 </script>
 </body>
 </html>
