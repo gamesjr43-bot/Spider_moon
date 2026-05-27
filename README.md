@@ -21,3 +21,16 @@ Como usar no GitHub Pages:
 - Golpes melhorados: soco, chute, defesa, dash e especial.
 - IA da CPU mais agressiva conforme dificuldade.
 - Impacto visual com partículas, shake, hitstop e texto de combo.
+
+
+## Spider Network PRO Upgrade
+
+Esta versão inclui:
+
+- Missões diárias com moedas locais.
+- Loja de skins/temas: Neon, Venom, Vermelho, Cyber e Campeão.
+- Sons e feedback visual melhorados.
+- Integração com os recordes dos mini games.
+- Melhorias de experiência no celular.
+
+Para publicar no GitHub Pages, envie todos os arquivos da pasta na raiz do repositório.
