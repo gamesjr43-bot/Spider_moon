@@ -44,15 +44,33 @@
   function saveDayStats(s){ writeJSON(STORE.statsDay, s); renderMissions(); }
   function incStat(k){ const s=dayStats(); s[k]=Number(s[k]||0)+1; saveDayStats(s); }
   function getBest(key){ return Number(localStorage.getItem('spider_best_'+key) || 0); }
-  function fightWins(){ return Number(localStorage.getItem('spider_fight_wins') || 0); }
+  function fightWins(){ return Math.max(Number(localStorage.getItem('spider_fight_wins') || 0), Number(localStorage.getItem('spider_best_fight') || 0)); }
 
   const MISSIONS = [
-    {id:'play3', icon:'🎮', title:'Aquecimento Spider', desc:'Abra 3 mini games hoje.', reward:60, progress:()=>[dayStats().games,3]},
-    {id:'flies150', icon:'🪰', title:'Caçada Difícil', desc:'Tenha recorde de 150+ nas moscas.', reward:90, progress:()=>[getBest('flies'),150]},
-    {id:'snake200', icon:'🐍', title:'Cobra Nervosa', desc:'Tenha recorde de 200+ no Snake.', reward:100, progress:()=>[getBest('snake'),200]},
-    {id:'memory180', icon:'🧠', title:'Memória Afiada', desc:'Tenha recorde de 180+ na memória.', reward:100, progress:()=>[getBest('memory'),180]},
-    {id:'fight1', icon:'🥊', title:'Vitória no Ringue', desc:'Ganhe pelo menos 1 luta no Mortal Spider.', reward:140, progress:()=>[fightWins(),1]},
-    {id:'forum1', icon:'💬', title:'Movimente a Comunidade', desc:'Crie 1 tópico ou responda 1 vez hoje.', reward:70, progress:()=>[dayStats().topics + dayStats().replies,1]}
+    // ── Diárias de jogos ──
+    {id:'play3',     icon:'🎮', title:'Aquecimento Spider',  desc:'Abra 3 mini games hoje.',                    reward:60,  progress:()=>[dayStats().games,3]},
+    {id:'play5',     icon:'🕹', title:'Maratona de Games',   desc:'Abra 5 mini games hoje.',                    reward:90,  progress:()=>[dayStats().games,5]},
+    // ── Moscas ──
+    {id:'flies150',  icon:'🪰', title:'Caçada Difícil',      desc:'Tenha recorde de 150+ nas moscas.',          reward:90,  progress:()=>[Math.max(getBest('flies'),Number(localStorage.getItem('flyHi_facil')||0),Number(localStorage.getItem('flyHi_medio')||0),Number(localStorage.getItem('flyHi_dificil')||0)),150]},
+    {id:'flies500',  icon:'🔥', title:'Infestação',           desc:'Tenha recorde de 500+ nas moscas.',          reward:160, progress:()=>[Math.max(getBest('flies'),Number(localStorage.getItem('flyHi_facil')||0),Number(localStorage.getItem('flyHi_medio')||0),Number(localStorage.getItem('flyHi_dificil')||0)),500]},
+    {id:'combo5',    icon:'💥', title:'Combo Master',         desc:'Alcance combo x5 nas moscas.',               reward:120, progress:()=>[Number(localStorage.getItem('spider_best_combo')||0),5]},
+    // ── Snake ──
+    {id:'snake200',  icon:'🐍', title:'Cobra Nervosa',        desc:'Tenha recorde de 200+ no Snake.',            reward:100, progress:()=>[Math.max(getBest('snake'),Number(localStorage.getItem('snakeHi')||0)),200]},
+    {id:'snake600',  icon:'🌀', title:'Anaconda Digital',     desc:'Tenha recorde de 600+ no Snake.',            reward:180, progress:()=>[Math.max(getBest('snake'),Number(localStorage.getItem('snakeHi')||0)),600]},
+    {id:'snakelvl5', icon:'⬆', title:'Sobe de Fase',         desc:'Chegue ao level 5 no Snake.',                reward:110, progress:()=>[Number(localStorage.getItem('spider_snake_maxlevel')||0),5]},
+    // ── Memória ──
+    {id:'memory180', icon:'🧠', title:'Memória Afiada',       desc:'Tenha recorde de 180+ na memória.',          reward:100, progress:()=>[getBest('memory'),180]},
+    {id:'memory400', icon:'🔮', title:'Mente de Cristal',     desc:'Tenha recorde de 400+ na memória.',          reward:170, progress:()=>[getBest('memory'),400]},
+    // ── Luta ──
+    {id:'fight1',    icon:'🥊', title:'Vitória no Ringue',    desc:'Ganhe pelo menos 1 luta no Mortal Spider.',  reward:140, progress:()=>[fightWins(),1]},
+    {id:'fight5',    icon:'🏅', title:'Guerreiro da Rede',    desc:'Ganhe 5 lutas no Mortal Spider.',            reward:200, progress:()=>[fightWins(),5]},
+    {id:'nightmare', icon:'💀', title:'Nível Pesadelo',       desc:'Ganhe 1 luta no modo Nightmare.',            reward:250, progress:()=>[Number(localStorage.getItem('spider_fight_nightmare_wins')||0),1]},
+    // ── Social ──
+    {id:'forum1',    icon:'💬', title:'Movimente a Comunidade',desc:'Crie 1 tópico ou responda hoje.',           reward:70,  progress:()=>[dayStats().topics+dayStats().replies,1]},
+    {id:'chat3',     icon:'👋', title:'Papo de Rede',         desc:'Envie 3 mensagens no chat hoje.',            reward:60,  progress:()=>[dayStats().chats||0,3]},
+    // ── Progressão ──
+    {id:'score500',  icon:'⭐', title:'Pontuador',             desc:'Acumule 500+ pontos totais.',                reward:100, progress:()=>[Number(localStorage.getItem('spider_total_score_cache')||0),500]},
+    {id:'score2000', icon:'💎', title:'Lenda da Rede',         desc:'Acumule 2000+ pontos totais.',               reward:200, progress:()=>[Number(localStorage.getItem('spider_total_score_cache')||0),2000]},
   ];
 
   function claimed(id){ return (dayStats().claims||[]).includes(id); }
@@ -158,13 +176,16 @@
 
   function installHooks(){
     ['toggleGame','toggleSnake','toggleFight','toggleMemory'].forEach(n=>wrap(n,()=>{ incStat('games'); sound('ok'); },()=>renderMissions()));
+    wrap('sendChat', null, ()=>{ incStat('chats'); });
     wrap('forumCreateTopic', null, ()=>{ incStat('topics'); sound('ok'); });
     wrap('forumSendReply', null, ()=>{ incStat('replies'); sound('ok'); });
     wrap('abrirPainel', null, (args)=>{ if(args?.[0]==='home') setTimeout(()=>{injectHomeSections(); renderMissions(); renderShop();},250); });
-    const oldSetItem = localStorage.setItem.bind(localStorage);
-    if(!localStorage.__spiderProWatched){
-      localStorage.setItem = function(k,v){ const out = oldSetItem(k,v); if(String(k).startsWith('spider_best_') || k==='spider_fight_wins') setTimeout(renderMissions,80); return out; };
-      localStorage.__spiderProWatched = '1';
+    // Listen for mission-relevant localStorage changes via CustomEvent (safe, no monkey-patch)
+    if(!window.__spiderProWatched){
+      window.__spiderProWatched = true;
+      window.addEventListener('spider:statChanged', ()=>setTimeout(renderMissions, 80));
+      // Poll every 5s as fallback (covers changes from app.js module context)
+      setInterval(renderMissions, 5000);
     }
   }
 

@@ -46,7 +46,9 @@
   function tapKey(code){ fireKey(code,true); setTimeout(()=>fireKey(code,false),55); Sound.beep('click'); }
 
   function addSnakeMobileControls(){
-    const modal = $('#snakeModal .game-modal-inner'); if(!modal || $('#snakeMobileDpad')) return;
+    // Skip if native D-Pad already exists in HTML (index.html v2+)
+    if($('.snake-dpad') || $('#snakeMobileDpad')) return;
+    const modal = $('#snakeModal .game-modal-inner'); if(!modal) return;
     const pad = document.createElement('div'); pad.id='snakeMobileDpad'; pad.className='mobile-dpad';
     pad.innerHTML = `<div class="mobile-dpad-grid">
       <span class="empty"></span><button type="button" data-key="ArrowUp">▲</button><span class="empty"></span>
@@ -54,12 +56,7 @@
       <span class="empty"></span><button type="button" data-key="ArrowDown">▼</button><span class="empty"></span>
     </div>`;
     const hint = $('#snakeHint'); modal.insertBefore(pad, hint || null);
-    pad.addEventListener('click', e=>{ const b=e.target.closest('button[data-key]'); if(!b) return; const k=b.dataset.key; if(k==='Space' && window.snakePauseToggle) { window.snakePauseToggle(); Sound.beep('ok'); } else tapKey(k); });
-    const canvas=$('#snakeCanvas'); if(canvas){
-      let sx=0, sy=0;
-      canvas.addEventListener('touchstart', e=>{ const t=e.touches[0]; sx=t.clientX; sy=t.clientY; }, {passive:true});
-      canvas.addEventListener('touchend', e=>{ const t=e.changedTouches[0]; const dx=t.clientX-sx, dy=t.clientY-sy; if(Math.max(Math.abs(dx),Math.abs(dy))<22) return; tapKey(Math.abs(dx)>Math.abs(dy) ? (dx>0?'ArrowRight':'ArrowLeft') : (dy>0?'ArrowDown':'ArrowUp')); }, {passive:true});
-    }
+    pad.addEventListener('click', e=>{ const b=e.target.closest('button[data-key]'); if(!b) return; const k=b.dataset.key; if(k==='Space' && window.snakeTogglePause) { window.snakeTogglePause(); Sound.beep('ok'); } else tapKey(k); });
   }
 
   function addFightMobileHelp(){
@@ -87,7 +84,7 @@
   async function reportContent(kind, targetId){
     const reason = prompt('Motivo da denúncia? Ex: spam, ofensa, conteúdo impróprio');
     if(!reason) return;
-    const api = window.spiderFirebase, ctx = window.spiderGetContext?.();
+    const api = window.spiderFirebase, ctx = window.spiderGetContext?.() || {currentUid: window._spiderUid, currentUser: window._spiderUser};
     if(!api || !ctx?.currentUid){ alert('Faça login para denunciar.'); return; }
     try{
       await api.addDoc(api.collection(api.db,'reports'), {kind, targetId, reason: String(reason).slice(0,200), uid: ctx.currentUid, user: ctx.currentUser?.user||'user', createdAt: api.serverTimestamp(), status:'open'});
@@ -126,7 +123,10 @@
   window.spiderShowGameOver = function(title,text,score,best){ createGameOverOverlay(); $('#gameOverTitle').textContent=title; $('#gameOverText').textContent=text; $('#gameOverScore').textContent=score||0; $('#gameOverBest').textContent=best||0; $('#gameOverPremium').classList.add('show'); Sound.beep(title.toLowerCase().includes('vit')?'win':'bad'); };
 
   window.addEventListener('load', ()=>{
-    addSoundButton(); addSnakeMobileControls(); addFightMobileHelp(); addForumTools(); createGameOverOverlay(); installWrappers();
+    addSoundButton(); addForumTools(); createGameOverOverlay();
+    // Delay wrappers until after ES module (app.js) has fully executed
+    // ES modules are deferred but run before 'load', so a short setTimeout is safe
+    setTimeout(()=>{ installWrappers(); addSnakeMobileControls(); addFightMobileHelp(); }, 120);
     document.addEventListener('click', e=>{ if(e.target.closest('button,.game-card-pro,.nav-btn,.mnav-btn')) Sound.beep('click'); }, true);
     const mo = new MutationObserver(()=>{ addForumTools(); addReportButtons(); });
     mo.observe(document.body,{childList:true,subtree:true});
