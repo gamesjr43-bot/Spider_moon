@@ -1,4 +1,3 @@
-
 (function(){
   'use strict';
   const $ = (sel, root=document) => root.querySelector(sel);
@@ -102,7 +101,7 @@
   }
 
   function wrap(name, before, after){
-    const old=window[name]; if(typeof old!=='function' || old.__spiderWrapped) return;
+    const old=window[name]; if(typeof old!=='function' || old.__spiderWrapped || old.__proWrapped) return;
     const fn=function(...args){ before?.(name,args); const res=old.apply(this,args); Promise.resolve(res).then(()=>after?.(name,args)).catch(()=>after?.(name,args)); return res; };
     fn.__spiderWrapped=true; window[name]=fn;
   }
@@ -132,3 +131,4 @@
     mo.observe(document.body,{childList:true,subtree:true});
   });
 })();
+                                                     
