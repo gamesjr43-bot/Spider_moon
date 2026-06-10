@@ -268,10 +268,13 @@
       </div>
 
       <div id="forumView-topics" style="display:none">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:18px">
+        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px">
           <button onclick="forumShowCategories()" class="secondary" style="padding:8px 14px;font-size:12px">← Voltar</button>
           <h2 id="forumCatTitle" style="font-family:var(--font-display);font-size:14px;letter-spacing:2px;color:var(--primary)"></h2>
           <button onclick="forumShowNewTopic()" class="success" style="margin-left:auto;font-size:12px;padding:8px 14px">✏️ Novo</button>
+        </div>
+        <div class="forum-tools-v2" style="margin-bottom:14px">
+          <input id="forumSearchInput" placeholder="🔍 Buscar tópico..." oninput="forumApplySearch()" style="font-size:13px">
         </div>
         <div id="forumTopicList"></div>
       </div>
@@ -339,6 +342,7 @@
         <button onclick="adminShowAnnouncement()" class="secondary">📢 Anúncio</button>
         <button onclick="adminShowAudit()" class="secondary">📋 Auditoria</button>
         <button onclick="adminShowSecurity()" class="secondary">🛡 Segurança</button>
+        <button onclick="adminShowReports()" class="secondary">⚠️ Denúncias</button>
         <button onclick="adminClearChat()" class="danger">🗑 Limpar Chat</button>
       </div>
 
@@ -379,6 +383,11 @@
           <button onclick="adminCreateCategory()" class="success" style="flex-shrink:0;padding:10px 14px">+ Criar</button>
         </div>
         <div id="adminCategoryList" style="display:flex;flex-direction:column;gap:8px"></div>
+      </div>
+
+      <div id="adminReportsSection" style="display:none">
+        <h3 style="font-size:12px;color:var(--accent);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">⚠️ DENÚNCIAS</h3>
+        <div id="adminReportsList"></div>
       </div>
     </div>
 

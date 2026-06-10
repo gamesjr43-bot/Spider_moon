@@ -98,6 +98,7 @@ function requireLogin() {
 }
 
 function isModAdmin() { return ["admin","moderator"].includes(currentUser?.role); }
+function isAdmin()    { return currentUser?.role === "admin"; }
 
 // ===== LOCAL RECORDS / GAME HELPERS =====
 const GAME_BEST_PREFIX = "spider_best_";
@@ -837,8 +838,7 @@ async function carregarAdminStats(){
 
 window.adminShowUsers = async function(){
   if(!isAdmin()) return;
-  ["adminUsersSection","adminAnnouncementSection","adminAuditSection","adminCategorySection"]
-    .forEach(id=>document.getElementById(id).style.display="none");
+  adminHideAll();
   document.getElementById("adminUsersSection").style.display="block";
   const snap = await getDocs(collection(db,"users"));
   allUsers = snap.docs.map(d=>({id:d.id,...d.data()}));
@@ -890,8 +890,7 @@ window.promoteUser = async function(userId,role){
 };
 
 window.adminShowAnnouncement = function(){
-  ["adminUsersSection","adminAnnouncementSection","adminAuditSection","adminCategorySection"]
-    .forEach(id=>document.getElementById(id).style.display="none");
+  adminHideAll();
   document.getElementById("adminAnnouncementSection").style.display="block";
 };
 
@@ -905,8 +904,7 @@ window.sendAnnouncement = async function(){
 };
 
 window.adminShowAudit = function(){
-  ["adminUsersSection","adminAnnouncementSection","adminAuditSection","adminCategorySection"]
-    .forEach(id=>document.getElementById(id).style.display="none");
+  adminHideAll();
   document.getElementById("adminAuditSection").style.display="block";
   carregarAudit();
 };
@@ -931,8 +929,7 @@ window.adminClearChat = async function(){
 
 window.adminShowCategories = function(){
   if(!isAdmin()) return;
-  ["adminUsersSection","adminAnnouncementSection","adminAuditSection","adminCategorySection"]
-    .forEach(id=>document.getElementById(id).style.display="none");
+  adminHideAll();
   document.getElementById("adminCategorySection").style.display="block";
   adminLoadCategories();
 };
@@ -2065,14 +2062,18 @@ async function forumLoadTopics(){
   const q=query(collection(db,"forumTopics"),orderBy("createdAt","desc"));
   const snap=await getDocs(q);
   let found=false;
+  const now = Date.now();
   const docs = snap.docs.sort((a,b)=>Number(!!b.data().pinned)-Number(!!a.data().pinned) || toMillis(b.data().createdAt)-toMillis(a.data().createdAt));
+
   docs.forEach(docu=>{
     const t=docu.data();
     if(t.category!==forumCurrentCategory.id) return;
+    if(forumSearchTerm && !t.title?.toLowerCase().includes(forumSearchTerm) && !t.content?.toLowerCase().includes(forumSearchTerm)) return;
+    const isNew = (now - toMillis(t.createdAt)) < 24*60*60*1000;
     found=true;
     list.innerHTML+=`
-      <div class="forum-topic-item" onclick="forumOpenTopic('${docu.id}')" style="${t.pinned?'border-color:rgba(255,215,0,.35);':''}">
-        <div class="forum-topic-title">${t.pinned?'📌 ':''}${sanitizeHTML(t.title)}</div>
+      <div class="forum-topic-item" onclick="forumOpenTopic('${docu.id}')" style="${t.pinned?'border-color:rgba(255,215,0,.35);':''}${t.locked?'opacity:.75;':''}">
+        <div class="forum-topic-title">${t.pinned?'📌 ':''}${t.locked?'🔒 ':''}${sanitizeHTML(t.title)}${isNew?'<span class="forum-new-tag">NOVO</span>':''}</div>
         <div class="forum-topic-meta">
           <span>por <strong style="color:var(--primary)">${sanitizeHTML(t.author)}</strong></span>
           <span>❤️ ${Number(t.likes||0)}</span>
@@ -2080,11 +2081,16 @@ async function forumLoadTopics(){
         </div>
       </div>`;
   });
-  if(!found) list.innerHTML=`<div class="empty-state"><span class="empty-icon">📝</span>Nenhum tópico ainda. Seja o primeiro!</div>`;
+  if(!found) list.innerHTML=`<div class="empty-state"><span class="empty-icon">📝</span>Nenhum tópico encontrado.</div>`;
 }
 
 window.forumShowCategories = function(){ forumCurrentCategory=null; forumCurrentTopic=null; carregarForum(); };
-window.forumShowTopics     = function(){ forumCurrentTopic=null; forumShowView('topics'); forumLoadTopics(); };
+window.forumShowTopics = function(){
+  forumCurrentTopic=null;
+  forumSearchTerm="";
+  const si=document.getElementById("forumSearchInput"); if(si) si.value="";
+  forumShowView('topics'); forumLoadTopics();
+};
 window.forumShowNewTopic   = function(){
   document.getElementById('forumNewTitle').value=''; document.getElementById('forumNewContent').value='';
   showMessage('forumMsg',''); forumShowView('newTopic');
@@ -2123,6 +2129,8 @@ window.forumOpenTopic = async function(id){
       <div class="topic-actions">
         <button class="tiny-action" onclick="forumLikeTopic(event,'${id}')">❤️ Curtir</button>
         ${isModAdmin()?`<button class="tiny-action" onclick="forumTogglePin(event,'${id}',${!topic.pinned})">${topic.pinned?'📌 Desfixar':'📌 Fixar'}</button>`:''}
+        ${isModAdmin()?`<button class="tiny-action" onclick="forumToggleLock(event,'${id}',${!topic.locked})">${topic.locked?'🔓 Destrancar':'🔒 Trancar'}</button>`:''}
+        ${requireLogin&&!isModAdmin()?`<button class="tiny-action report-btn" onclick="forumReportTopic(event,'${id}')">⚠️ Denunciar</button>`:''}
         ${(isModAdmin() || topic.authorId===currentUid)?`<button class="tiny-action danger" onclick="forumDeleteTopic(event,'${id}')">🗑 Apagar</button>`:''}
       </div>`;
     forumShowView('topic');
@@ -2148,6 +2156,7 @@ async function forumLoadReplies(topicId){
           <span style="font-size:11px;color:var(--text-dim)">${formatDate(r.createdAt)}</span>
         </div>
         <div class="forum-reply-content">${sanitizeHTML(r.content)}</div>
+        ${(isModAdmin() || r.authorId===currentUid)?`<div style="text-align:right;margin-top:6px"><button class="tiny-action danger" onclick="forumDeleteReply(event,'${docu.id}','${r.authorId}')">🗑 Apagar</button></div>`:''}
       </div>`;
   });
   if(!found) list.innerHTML=`<div class="empty-state" style="padding:20px"><span class="empty-icon" style="font-size:32px">💬</span>Nenhuma resposta ainda.</div>`;
@@ -2181,6 +2190,68 @@ window.forumDeleteTopic = async function(ev,id){
   ev?.stopPropagation?.(); if(!isModAdmin() && forumCurrentTopic?.authorId!==currentUid) return showNotification("Sem permissão.","error");
   if(!confirm("Apagar este tópico?")) return;
   await deleteDoc(doc(db,"forumTopics",id)); showNotification("Tópico apagado."); forumShowTopics(); carregarHomeStats();
+};
+
+window.forumDeleteReply = async function(ev,id,authorId){
+  ev?.stopPropagation?.();
+  if(!isModAdmin() && authorId!==currentUid) return showNotification("Sem permissão.","error");
+  if(!confirm("Apagar esta resposta?")) return;
+  await deleteDoc(doc(db,"forumReplies",id));
+  showNotification("Resposta apagada.");
+  await forumLoadReplies(forumCurrentTopic.id);
+};
+
+window.forumToggleLock = async function(ev,id,value){
+  ev?.stopPropagation?.(); if(!isModAdmin()) return showNotification("Só mod/admin.","error");
+  await updateDoc(doc(db,"forumTopics",id),{ locked:!!value });
+  showNotification(value?"Tópico trancado":"Tópico destrancado");
+  forumOpenTopic(id);
+};
+
+window.forumReportTopic = async function(ev,id){
+  ev?.stopPropagation?.(); if(!requireLogin()) return;
+  const reason = prompt("Motivo do report (max 200 chars):");
+  if(!reason||!reason.trim()) return;
+  if(reason.length>200){ showNotification("Motivo muito longo.","warning"); return; }
+  await addDoc(collection(db,"reports"),{ type:"topic", refId:id, reason:reason.trim(),
+    reporter:currentUser.user, reporterId:currentUid, createdAt:serverTimestamp() });
+  showNotification("Denúncia enviada.");
+};
+
+let forumSearchTerm = "";
+let forumFilterCat  = null;
+window.forumApplySearch = function(){
+  forumSearchTerm = (document.getElementById("forumSearchInput")?.value||"").toLowerCase().trim();
+  forumLoadTopics();
+};
+
+// ── FORUM REPORTS ADMIN PANEL ──
+window.adminShowReports = async function(){
+  if(!isModAdmin()) return;
+  adminHideAll();
+  const sec = document.getElementById("adminReportsSection");
+  if(sec) sec.style.display="block";
+  const list = document.getElementById("adminReportsList");
+  if(!list) return;
+  list.innerHTML = `<div style="color:var(--text-dim);font-size:13px">Carregando...</div>`;
+  const q = query(collection(db,"reports"),orderBy("createdAt","desc"),limit(40));
+  const snap = await getDocs(q);
+  if(snap.empty){ list.innerHTML=`<div class="empty-state"><span class="empty-icon">✅</span>Nenhuma denúncia.</div>`; return; }
+  list.innerHTML = snap.docs.map(d=>{ const r=d.data(); return `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
+        Tipo: <b>${sanitizeHTML(r.type||"topic")}</b> · ID: <code>${sanitizeHTML(r.refId||"")}</code> · por <b>${sanitizeHTML(r.reporter||"?")}</b> · ${formatDate(r.createdAt)}
+      </div>
+      <div style="font-size:13px;color:var(--text);margin-bottom:8px">${sanitizeHTML(r.reason)}</div>
+      <button onclick="adminDismissReport('${d.id}')" class="danger" style="font-size:11px;padding:5px 10px">🗑 Dispensar</button>
+    </div>`; }).join("");
+};
+
+window.adminDismissReport = async function(id){
+  if(!isModAdmin()) return;
+  await deleteDoc(doc(db,"reports",id));
+  showNotification("Denúncia dispensada.");
+  adminShowReports();
 };
 
 // ===== MEMORY GAME =====
@@ -2363,7 +2434,7 @@ service cloud.firestore {
     }
   }
 }`;
-function adminHideAll(){ ["adminUsersSection","adminAnnouncementSection","adminAuditSection","adminCategorySection","adminSecuritySection"].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display="none"; }); }
+function adminHideAll(){ ["adminUsersSection","adminAnnouncementSection","adminAuditSection","adminCategorySection","adminSecuritySection","adminReportsSection"].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display="none"; }); }
 window.adminShowSecurity = function(){ if(!isAdmin()) return; adminHideAll(); const sec=document.getElementById("adminSecuritySection"); if(sec) sec.style.display="block"; const box=document.getElementById("securityRulesBox"); if(box) box.textContent=SECURITY_RULES; };
 window.copySecurityRules = function(){ navigator.clipboard?.writeText(SECURITY_RULES); showNotification("Regras copiadas!"); };
 
