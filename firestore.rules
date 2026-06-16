@@ -6,15 +6,22 @@ service cloud.firestore {
     function isAdmin() { return signedIn() && me().data.role == "admin"; }
     function isMod() { return signedIn() && (me().data.role == "admin" || me().data.role == "moderator"); }
     function notBanned() { return signedIn() && me().data.isBanned != true; }
+    function selfOnly(userId) { return signedIn() && request.auth.uid == userId; }
 
     match /users/{userId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.auth.uid == userId;
-      allow update: if signedIn() && (
-        request.auth.uid == userId
-        && !('role' in request.resource.data.diff(resource.data).changedKeys())
-        && !('isBanned' in request.resource.data.diff(resource.data).changedKeys())
-      ) || isAdmin();
+      allow create: if selfOnly(userId)
+        && request.resource.data.role == "user"
+        && request.resource.data.isBanned == false;
+      // O usuário só pode editar dados de perfil/conquistas. Placar, cargo e ban só por admin/sistema.
+      allow update: if isAdmin()
+        || (selfOnly(userId)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'bio', 'avatar', 'achievements', 'achievementCount',
+            'lastLogin', 'loginStreak', 'lastStreakBonusDate'
+          ])
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.isBanned == resource.data.isBanned);
       allow delete: if isAdmin();
     }
 
@@ -66,18 +73,17 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if notBanned()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.game in ['flies','snake','memory','fight']
+        && request.resource.data.game in ['flies','snake','memory','fight','achievement','streak']
         && request.resource.data.score is int
         && request.resource.data.score >= 0
         && request.resource.data.score <= 100000;
       allow update, delete: if isAdmin();
     }
-  }
 
-    // Admin audit log
+    // Admin audit log: agora fica dentro do bloco /databases/{database}/documents
     match /audit/{docId} {
-      allow read: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin','mod'];
-      allow create: if request.auth != null && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role in ['admin','mod'];
+      allow read, create: if isMod();
       allow update, delete: if false;
     }
+  }
 }

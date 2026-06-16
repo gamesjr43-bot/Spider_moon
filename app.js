@@ -10,7 +10,7 @@ import {
   signOut, onAuthStateChanged
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js";
 
-// ── Firebase config — SUBSTITUA com suas credenciais do Firebase Console ──
+// ── Firebase config — use uma chave restrita no Google Cloud/Firebase Console ──
 // Acesse: https://console.firebase.google.com → Seu projeto → ⚙️ → Geral → Seus apps
 const firebaseConfig = {
   apiKey: "AIzaSyCRm4tZsnRBlwU-0o-o0oHY6WEyozib-pI",
@@ -226,7 +226,7 @@ function getDailyStreak(){
   // bonus XP for streak
   if(streak > 1 && currentUid){
     const bonus = Math.min(streak * 5, 50);
-    updateDoc(doc(db,"users",currentUid),{ score:increment(bonus) }).catch(()=>{});
+    submitGameScore("streak", bonus).catch(()=>{});
     showNotification(`🔥 ${streak} dias seguidos! +${bonus} XP de bônus`, "success");
     checkAchievements();
   }
@@ -255,10 +255,58 @@ function getBest(key){
   return Math.max(primary, legacy);
 }
 async function syncGameRecordToProfile(key, value){
+  // As novas regras bloqueiam atualização direta de placar no /users para evitar trapaça pelo console.
+  // Mantemos só o cache local; o ranking online vem de /gameScores.
   if(!currentUid) return;
   const field = GAME_FIELDS[key];
   if(!field) return;
-  try{ await updateDoc(doc(db,"users",currentUid),{ [field]: Math.max(Number(value)||0, Number(currentUser?.[field]||0)) }); currentUser[field]=Math.max(Number(value)||0, Number(currentUser?.[field]||0)); }catch(e){ console.warn("sync record", e); }
+  currentUser = currentUser || {};
+  currentUser[field] = Math.max(Number(value)||0, Number(currentUser?.[field]||0));
+}
+
+async function getScoreStats(uid){
+  const stats = { score:0, flies:0, bestFlies:0, bestSnake:0, bestMemory:0, fightWins:0 };
+  if(!uid) return stats;
+  try{
+    const snap = await getDocs(query(collection(db,"gameScores"), where("uid","==",uid), limit(500)));
+    snap.docs.forEach(d=>{
+      const data = d.data();
+      const game = data.game;
+      const points = Math.max(0, Number(data.score)||0);
+      stats.score += points;
+      if(game === "flies"){ stats.bestFlies = Math.max(stats.bestFlies, points); stats.flies += Math.floor(points/10); }
+      if(game === "snake") stats.bestSnake = Math.max(stats.bestSnake, points);
+      if(game === "memory") stats.bestMemory = Math.max(stats.bestMemory, points);
+      if(game === "fight") stats.fightWins += 1;
+    });
+  }catch(e){ console.warn("score stats error:", e); }
+  return stats;
+}
+
+async function submitGameScore(game, points){
+  if(!currentUid) return false;
+  const safeGame = String(game||"");
+  const safePoints = Math.max(0, Math.min(100000, Math.floor(Number(points)||0)));
+  if(!safePoints) return false;
+  try{
+    await addDoc(collection(db,"gameScores"), {
+      uid: currentUid,
+      username: String(currentUser?.user || "Jogador").slice(0, 40),
+      game: safeGame,
+      score: safePoints,
+      createdAt: serverTimestamp()
+    });
+    const stats = await getScoreStats(currentUid);
+    currentUser = { ...(currentUser||{}), ...stats };
+    localStorage.setItem("spider_total_score_cache", String(stats.score));
+    await carregarPerfil();
+    carregarRanking();
+    checkAchievements();
+    return true;
+  }catch(e){
+    console.warn("submit score error:", e);
+    return false;
+  }
 }
 function setBest(key, value){
   const v = Number(value)||0;
@@ -295,10 +343,8 @@ async function unlockAchievement(id){
   renderAchievements();
   if(currentUid){
     try{
-      const update = { achievements: unlocked, achievementCount: unlocked.length };
-      if(pts > 0) update.score = increment(pts);
-      await updateDoc(doc(db,"users",currentUid), update);
-      if(pts>0){ carregarPerfil(); carregarRanking(); }
+      await updateDoc(doc(db,"users",currentUid), { achievements: unlocked, achievementCount: unlocked.length });
+      if(pts>0) await submitGameScore("achievement", pts);
     }catch{}
   }
 }
@@ -558,7 +604,9 @@ window.logout = async function(){
 async function carregarPerfil(){
   if(!requireLogin()) return;
   const snap = await getDoc(doc(db,"users",currentUid));
-  currentUser = snap.data();
+  currentUser = snap.data() || {};
+  const scoreStats = await getScoreStats(currentUid);
+  currentUser = { ...currentUser, ...scoreStats };
 
   const av = currentUser.avatar || getDefaultAvatar(currentUser.user);
   document.getElementById("avatar").src          = av;
@@ -658,13 +706,29 @@ async function carregarRanking(){
   if(!requireLogin()) return;
   try {
     const labelMap = { score:"pontos", bestFlies:"moscas", bestSnake:"snake", bestMemory:"memória", fightWins:"vitórias" };
-    const q = query(collection(db,"users"),orderBy(rankingMode,"desc"),limit(50));
-    const snap = await getDocs(q);
-    const users = snap.docs.map(d=>({id:d.id,...d.data()})).filter(u=>!u.isBanned);
+    const usersSnap = await getDocs(collection(db,"users"));
+    const usersById = {};
+    usersSnap.docs.forEach(d=>{
+      const u = {id:d.id, ...d.data()};
+      if(!u.isBanned) usersById[d.id] = { ...u, score:0, flies:0, bestFlies:0, bestSnake:0, bestMemory:0, fightWins:0 };
+    });
+    const scoresSnap = await getDocs(query(collection(db,"gameScores"), limit(1000)));
+    scoresSnap.docs.forEach(d=>{
+      const sc = d.data();
+      const uid = sc.uid;
+      if(!uid || !usersById[uid]) return;
+      const points = Math.max(0, Number(sc.score)||0);
+      usersById[uid].score += points;
+      if(sc.game === "flies"){ usersById[uid].bestFlies = Math.max(usersById[uid].bestFlies, points); usersById[uid].flies += Math.floor(points/10); }
+      if(sc.game === "snake") usersById[uid].bestSnake = Math.max(usersById[uid].bestSnake, points);
+      if(sc.game === "memory") usersById[uid].bestMemory = Math.max(usersById[uid].bestMemory, points);
+      if(sc.game === "fight") usersById[uid].fightWins += 1;
+    });
+    const users = Object.values(usersById).sort((a,b)=>Number(b[rankingMode]||0)-Number(a[rankingMode]||0)).slice(0,50);
     const list  = document.getElementById("rankingList");
     const medals = ["🥇","🥈","🥉"];
     const posClass = ["gold","silver","bronze"];
-    if(!users.length){ list.innerHTML=`<div class="empty-state"><span class="empty-icon">🏆</span>Ninguém pontuou ainda nesse ranking.</div>`; return; }
+    if(!users.length || users.every(u=>Number(u[rankingMode]||0)===0)){ list.innerHTML=`<div class="empty-state"><span class="empty-icon">🏆</span>Ninguém pontuou ainda nesse ranking.</div>`; return; }
     list.innerHTML = users.map((u,i)=>{
       const isMe = u.id === currentUid;
       const avatarSrc = u.avatar || getDefaultAvatar(u.user);
@@ -1197,12 +1261,7 @@ async function stopGame(saveScore=true){
   }
   if(saveScore && score>0 && currentUid){
     try{
-      await updateDoc(doc(db,"users",currentUid),{ score:increment(score), flies:increment(Math.floor(score/10)) });
-      await carregarPerfil();
-      carregarRanking();
-      // Update score cache AFTER profile reload so it reflects actual Firestore value
-      if(currentUser?.score) localStorage.setItem("spider_total_score_cache", String(currentUser.score));
-      checkAchievements();
+      await submitGameScore("flies", score);
     }catch(e){ console.warn("stopGame save error:", e); }
   }
 }
@@ -1504,14 +1563,7 @@ function initSnake(){
     const prevMaxLevel = Number(localStorage.getItem("spider_snake_maxlevel")||0);
     if(level > prevMaxLevel) localStorage.setItem("spider_snake_maxlevel", String(level));
     if(currentUid && pts>0){
-      updateDoc(doc(db,"users",currentUid),{ score:increment(pts), bestSnake:Math.max(pts, Number(currentUser?.bestSnake||0)) })
-        .then(async ()=>{
-          carregarRanking();
-          await carregarPerfil();
-          // Update score cache AFTER profile reload
-          if(currentUser?.score) localStorage.setItem("spider_total_score_cache", String(currentUser.score));
-          checkAchievements();
-        }).catch(e=>{ console.warn("snake save error:", e); checkAchievements(); });
+      submitGameScore("snake", pts).catch(e=>{ console.warn("snake save error:", e); checkAchievements(); });
     } else {
       checkAchievements();
     }
@@ -1668,6 +1720,7 @@ function readFightInput(){
   fbState.p2_kick    = !!(fightKeys['k']||fightKeys['K']||fbState.p2_kick);
   fbState.p2_special = !!(fightKeys['l']||fightKeys['L']||fbState.p2_special);
   fbState.p2_block   = !!(fightKeys[';']||fightKeys[':']||fbState.p2_block);
+}
 window.carregarChat    = carregarChat;
 
 // ===== MORTAL SPIDER V5 moved inside initApp scope =====
@@ -1926,7 +1979,7 @@ window.carregarChat    = carregarChat;
           // Update score cache for milestone achievements
           if(currentUser?.score) localStorage.setItem("spider_total_score_cache", String(currentUser.score+180));
           try{ if(typeof checkAchievements==='function') checkAchievements(); }catch(e){}
-          try{ if(currentUid && typeof updateDoc==='function') updateDoc(doc(db,'users',currentUid),{fightWins:increment(1),score:increment(180)}).then(()=>{carregarRanking();carregarPerfil();}).catch(()=>{}); }catch(e){}
+          try{ if(currentUid) submitGameScore('fight', 180); }catch(e){}
         }
       }
     }
@@ -2332,7 +2385,7 @@ window.flipMemoryCard = function(card){
       updateGameBestLabels();
       document.getElementById("memoryHint").textContent = newBest ? "🏆 Novo recorde!" : "Você venceu!";
       showNotification((newBest ? "🏆 Novo recorde: " : "Vitória: ") + finalScore);
-      if(currentUid && finalScore>0){ updateDoc(doc(db,"users",currentUid),{ score:increment(finalScore), bestMemory:Math.max(finalScore, Number(currentUser?.bestMemory||0)) }).then(()=>{ carregarRanking(); carregarPerfil(); }).catch(()=>{}); }
+      if(currentUid && finalScore>0){ submitGameScore("memory", finalScore); }
       checkAchievements();
     }
   } else {
@@ -2354,20 +2407,31 @@ service cloud.firestore {
     function isAdmin() { return signedIn() && me().data.role == "admin"; }
     function isMod() { return signedIn() && (me().data.role == "admin" || me().data.role == "moderator"); }
     function notBanned() { return signedIn() && me().data.isBanned != true; }
+    function selfOnly(userId) { return signedIn() && request.auth.uid == userId; }
 
     match /users/{userId} {
       allow read: if signedIn();
-      allow create: if signedIn() && request.auth.uid == userId;
-      allow update: if signedIn() && (
-        request.auth.uid == userId && !('role' in request.resource.data.diff(resource.data).changedKeys()) && !('isBanned' in request.resource.data.diff(resource.data).changedKeys())
-        || isAdmin()
-      );
+      allow create: if selfOnly(userId)
+        && request.resource.data.role == "user"
+        && request.resource.data.isBanned == false;
+      // O usuário só pode editar dados de perfil/conquistas. Placar, cargo e ban só por admin/sistema.
+      allow update: if isAdmin()
+        || (selfOnly(userId)
+          && request.resource.data.diff(resource.data).changedKeys().hasOnly([
+            'bio', 'avatar', 'achievements', 'achievementCount',
+            'lastLogin', 'loginStreak', 'lastStreakBonusDate'
+          ])
+          && request.resource.data.role == resource.data.role
+          && request.resource.data.isBanned == resource.data.isBanned);
       allow delete: if isAdmin();
     }
 
     match /chat/{msgId} {
       allow read: if signedIn();
-      allow create: if notBanned() && request.resource.data.content is string && request.resource.data.content.size() <= 500;
+      allow create: if notBanned()
+        && request.resource.data.uid == request.auth.uid
+        && request.resource.data.content is string
+        && request.resource.data.content.size() <= 500;
       allow update, delete: if isMod();
     }
 
@@ -2378,20 +2442,30 @@ service cloud.firestore {
 
     match /forumTopics/{topicId} {
       allow read: if signedIn();
-      allow create: if notBanned() && request.resource.data.title.size() <= 80 && request.resource.data.content.size() <= 1200;
-      allow update: if isMod() || (notBanned() && request.resource.data.diff(resource.data).changedKeys().hasOnly(['likes']));
+      allow create: if notBanned()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.title is string
+        && request.resource.data.title.size() <= 80
+        && request.resource.data.content is string
+        && request.resource.data.content.size() <= 1200;
+      allow update: if isMod()
+        || (notBanned() && request.resource.data.diff(resource.data).changedKeys().hasOnly(['likes']));
       allow delete: if isMod() || (signedIn() && resource.data.authorId == request.auth.uid);
     }
 
     match /forumReplies/{replyId} {
       allow read: if signedIn();
-      allow create: if notBanned() && request.resource.data.content.size() <= 900;
+      allow create: if notBanned()
+        && request.resource.data.authorId == request.auth.uid
+        && request.resource.data.content is string
+        && request.resource.data.content.size() <= 900;
       allow update, delete: if isMod() || (signedIn() && resource.data.authorId == request.auth.uid);
     }
 
     match /reports/{reportId} {
       allow read, update, delete: if isMod();
       allow create: if notBanned()
+        && request.resource.data.uid == request.auth.uid
         && request.resource.data.reason is string
         && request.resource.data.reason.size() <= 200;
     }
@@ -2400,14 +2474,21 @@ service cloud.firestore {
       allow read: if signedIn();
       allow create: if notBanned()
         && request.resource.data.uid == request.auth.uid
-        && request.resource.data.game in ['flies','snake','memory','fight']
+        && request.resource.data.game in ['flies','snake','memory','fight','achievement','streak']
         && request.resource.data.score is int
         && request.resource.data.score >= 0
         && request.resource.data.score <= 100000;
       allow update, delete: if isAdmin();
     }
+
+    // Admin audit log: agora fica dentro do bloco /databases/{database}/documents
+    match /audit/{docId} {
+      allow read, create: if isMod();
+      allow update, delete: if false;
+    }
   }
-}`;
+}
+`;
 function adminHideAll(){ ["adminUsersSection","adminAnnouncementSection","adminAuditSection","adminCategorySection","adminSecuritySection","adminReportsSection"].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display="none"; }); }
 window.adminShowSecurity = function(){ if(!isAdmin()) return; adminHideAll(); const sec=document.getElementById("adminSecuritySection"); if(sec) sec.style.display="block"; const box=document.getElementById("securityRulesBox"); if(box) box.textContent=SECURITY_RULES; };
 window.copySecurityRules = function(){ navigator.clipboard?.writeText(SECURITY_RULES); showNotification("Regras copiadas!"); };
@@ -2456,7 +2537,6 @@ window.carregarRanking = carregarRanking;
 window.carregarChat    = carregarChat;
 
 
-} // end V5 IIFE
 
 // ===== EXPOSE INTERNAL FUNCTIONS TO GLOBAL SCOPE =====
 window.abrirSistema       = abrirSistema;
