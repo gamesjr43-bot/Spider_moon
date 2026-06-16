@@ -1630,7 +1630,8 @@ window.toggleFight  = function(){
   if(modal.classList.contains("open")){ modal.classList.remove("open"); stopFight(); return; }
   stopFight();
   modal.classList.add("open");
-  startFight();
+  // defer so browser renders modal before canvas getBoundingClientRect
+  requestAnimationFrame(()=>requestAnimationFrame(startFight));
 };
 window.restartFight = function(){ stopFight(); startFight(); };
 
@@ -1732,8 +1733,11 @@ window.carregarChat    = carregarChat;
     installFightV5UI();
     const canvas = document.getElementById('fightCanvas');
     if(!canvas) return;
+    // Sync internal resolution to actual display size to prevent black screen
+    const rect = canvas.getBoundingClientRect();
+    if(rect.width > 0) { canvas.width = Math.round(rect.width); canvas.height = Math.round(rect.width * 0.48); }
     const ctx = canvas.getContext('2d');
-    const W = canvas.width || 500, H = canvas.height || 240;
+    const W = canvas.width, H = canvas.height;
     const GROUND = H - 32, GRAV = .78, BEST = 2;
 
     if(typeof setFightDifficulty === 'function') setFightDifficulty(fightDifficulty || 'hard');
@@ -2064,7 +2068,6 @@ async function forumLoadTopics(){
   let found=false;
   const now = Date.now();
   const docs = snap.docs.sort((a,b)=>Number(!!b.data().pinned)-Number(!!a.data().pinned) || toMillis(b.data().createdAt)-toMillis(a.data().createdAt));
-
   docs.forEach(docu=>{
     const t=docu.data();
     if(t.category!==forumCurrentCategory.id) return;
@@ -2072,7 +2075,7 @@ async function forumLoadTopics(){
     const isNew = (now - toMillis(t.createdAt)) < 24*60*60*1000;
     found=true;
     list.innerHTML+=`
-      <div class="forum-topic-item" onclick="forumOpenTopic('${docu.id}')" style="${t.pinned?'border-color:rgba(255,215,0,.35);':''}${t.locked?'opacity:.75;':''}">
+      <div class="forum-topic-item" onclick="forumOpenTopic('${docu.id}')" style="${t.pinned?'border-color:rgba(255,215,0,.35);':''}${t.locked?'opacity:.78;':''}">
         <div class="forum-topic-title">${t.pinned?'📌 ':''}${t.locked?'🔒 ':''}${sanitizeHTML(t.title)}${isNew?'<span class="forum-new-tag">NOVO</span>':''}</div>
         <div class="forum-topic-meta">
           <span>por <strong style="color:var(--primary)">${sanitizeHTML(t.author)}</strong></span>
@@ -2081,16 +2084,10 @@ async function forumLoadTopics(){
         </div>
       </div>`;
   });
-  if(!found) list.innerHTML=`<div class="empty-state"><span class="empty-icon">📝</span>Nenhum tópico encontrado.</div>`;
+  if(!found) list.innerHTML=`<div class="empty-state"><span class="empty-icon">📝</span>${forumSearchTerm?'Nenhum tópico encontrado.':'Nenhum tópico ainda. Seja o primeiro!'}</div>`;
 }
 
 window.forumShowCategories = function(){ forumCurrentCategory=null; forumCurrentTopic=null; carregarForum(); };
-window.forumShowTopics = function(){
-  forumCurrentTopic=null;
-  forumSearchTerm="";
-  const si=document.getElementById("forumSearchInput"); if(si) si.value="";
-  forumShowView('topics'); forumLoadTopics();
-};
 window.forumShowNewTopic   = function(){
   document.getElementById('forumNewTitle').value=''; document.getElementById('forumNewContent').value='';
   showMessage('forumMsg',''); forumShowView('newTopic');
@@ -2130,7 +2127,7 @@ window.forumOpenTopic = async function(id){
         <button class="tiny-action" onclick="forumLikeTopic(event,'${id}')">❤️ Curtir</button>
         ${isModAdmin()?`<button class="tiny-action" onclick="forumTogglePin(event,'${id}',${!topic.pinned})">${topic.pinned?'📌 Desfixar':'📌 Fixar'}</button>`:''}
         ${isModAdmin()?`<button class="tiny-action" onclick="forumToggleLock(event,'${id}',${!topic.locked})">${topic.locked?'🔓 Destrancar':'🔒 Trancar'}</button>`:''}
-        ${requireLogin&&!isModAdmin()?`<button class="tiny-action report-btn" onclick="forumReportTopic(event,'${id}')">⚠️ Denunciar</button>`:''}
+        ${currentUid && !isModAdmin()?`<button class="tiny-action report-btn" onclick="forumReportTopic(event,'${id}')">⚠️ Denunciar</button>`:''}
         ${(isModAdmin() || topic.authorId===currentUid)?`<button class="tiny-action danger" onclick="forumDeleteTopic(event,'${id}')">🗑 Apagar</button>`:''}
       </div>`;
     forumShowView('topic');
@@ -2210,48 +2207,25 @@ window.forumToggleLock = async function(ev,id,value){
 
 window.forumReportTopic = async function(ev,id){
   ev?.stopPropagation?.(); if(!requireLogin()) return;
-  const reason = prompt("Motivo do report (max 200 chars):");
+  const reason = prompt("Motivo da denúncia (max 200 chars):");
   if(!reason||!reason.trim()) return;
   if(reason.length>200){ showNotification("Motivo muito longo.","warning"); return; }
   await addDoc(collection(db,"reports"),{ type:"topic", refId:id, reason:reason.trim(),
     reporter:currentUser.user, reporterId:currentUid, createdAt:serverTimestamp() });
-  showNotification("Denúncia enviada.");
+  showNotification("Denúncia enviada. Obrigado!");
 };
 
 let forumSearchTerm = "";
-let forumFilterCat  = null;
 window.forumApplySearch = function(){
   forumSearchTerm = (document.getElementById("forumSearchInput")?.value||"").toLowerCase().trim();
   forumLoadTopics();
 };
 
-// ── FORUM REPORTS ADMIN PANEL ──
-window.adminShowReports = async function(){
-  if(!isModAdmin()) return;
-  adminHideAll();
-  const sec = document.getElementById("adminReportsSection");
-  if(sec) sec.style.display="block";
-  const list = document.getElementById("adminReportsList");
-  if(!list) return;
-  list.innerHTML = `<div style="color:var(--text-dim);font-size:13px">Carregando...</div>`;
-  const q = query(collection(db,"reports"),orderBy("createdAt","desc"),limit(40));
-  const snap = await getDocs(q);
-  if(snap.empty){ list.innerHTML=`<div class="empty-state"><span class="empty-icon">✅</span>Nenhuma denúncia.</div>`; return; }
-  list.innerHTML = snap.docs.map(d=>{ const r=d.data(); return `
-    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
-      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
-        Tipo: <b>${sanitizeHTML(r.type||"topic")}</b> · ID: <code>${sanitizeHTML(r.refId||"")}</code> · por <b>${sanitizeHTML(r.reporter||"?")}</b> · ${formatDate(r.createdAt)}
-      </div>
-      <div style="font-size:13px;color:var(--text);margin-bottom:8px">${sanitizeHTML(r.reason)}</div>
-      <button onclick="adminDismissReport('${d.id}')" class="danger" style="font-size:11px;padding:5px 10px">🗑 Dispensar</button>
-    </div>`; }).join("");
-};
-
-window.adminDismissReport = async function(id){
-  if(!isModAdmin()) return;
-  await deleteDoc(doc(db,"reports",id));
-  showNotification("Denúncia dispensada.");
-  adminShowReports();
+window.forumShowTopics = function(){
+  forumCurrentTopic=null;
+  forumSearchTerm="";
+  const si=document.getElementById("forumSearchInput"); if(si) si.value="";
+  forumShowView('topics'); forumLoadTopics();
 };
 
 // ===== MEMORY GAME =====
@@ -2437,6 +2411,33 @@ service cloud.firestore {
 function adminHideAll(){ ["adminUsersSection","adminAnnouncementSection","adminAuditSection","adminCategorySection","adminSecuritySection","adminReportsSection"].forEach(id=>{ const el=document.getElementById(id); if(el) el.style.display="none"; }); }
 window.adminShowSecurity = function(){ if(!isAdmin()) return; adminHideAll(); const sec=document.getElementById("adminSecuritySection"); if(sec) sec.style.display="block"; const box=document.getElementById("securityRulesBox"); if(box) box.textContent=SECURITY_RULES; };
 window.copySecurityRules = function(){ navigator.clipboard?.writeText(SECURITY_RULES); showNotification("Regras copiadas!"); };
+
+window.adminShowReports = async function(){
+  if(!isModAdmin()) return;
+  adminHideAll();
+  const sec = document.getElementById("adminReportsSection");
+  if(sec) sec.style.display="block";
+  const list = document.getElementById("adminReportsList");
+  if(!list) return;
+  list.innerHTML = `<div style="color:var(--text-dim);font-size:13px;text-align:center;padding:12px">Carregando...</div>`;
+  const q = query(collection(db,"reports"),orderBy("createdAt","desc"),limit(40));
+  const snap = await getDocs(q);
+  if(snap.empty){ list.innerHTML=`<div class="empty-state"><span class="empty-icon">✅</span>Nenhuma denúncia.</div>`; return; }
+  list.innerHTML = snap.docs.map(d=>{ const r=d.data(); return `
+    <div style="background:var(--bg2);border:1px solid var(--border);border-radius:10px;padding:12px;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--text-dim);margin-bottom:6px">
+        Tipo: <b>${sanitizeHTML(r.type||"topic")}</b> · ID: <code style="font-size:10px">${sanitizeHTML(r.refId||"")}</code> · por <b>${sanitizeHTML(r.reporter||"?")}</b> · ${formatDate(r.createdAt)}
+      </div>
+      <div style="font-size:13px;color:var(--text);margin-bottom:8px">${sanitizeHTML(r.reason)}</div>
+      <button onclick="adminDismissReport('${d.id}')" class="danger" style="font-size:11px;padding:5px 10px">🗑 Dispensar</button>
+    </div>`; }).join("");
+};
+window.adminDismissReport = async function(id){
+  if(!isModAdmin()) return;
+  await deleteDoc(doc(db,"reports",id));
+  showNotification("Denúncia dispensada.");
+  adminShowReports();
+};
 
 
 // Spider V2: exposição controlada para recursos extras externos
