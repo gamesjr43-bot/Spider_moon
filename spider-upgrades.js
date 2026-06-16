@@ -70,35 +70,20 @@
   }
 
   function addForumTools(){
-    const list = $('#forumTopicList'); if(!list || $('#forumToolsV2')) return;
-    const box = document.createElement('div'); box.id='forumToolsV2'; box.className='forum-tools-v2';
-    box.innerHTML = `<input id="forumSearchV2" placeholder="🔍 Buscar tópico nesta categoria..." autocomplete="off"><select id="forumSortV2"><option value="recent">Recentes</option><option value="likes">Mais curtidos</option><option value="pinned">Fixados</option></select>`;
-    list.parentNode.insertBefore(box, list);
-    box.addEventListener('input', filterTopics); box.addEventListener('change', filterTopics);
+    // DESATIVADO: app.js já tem busca nativa (#forumSearchInput) — evita duplicidade
+    return;
   }
-  function filterTopics(){
-    const q=($('#forumSearchV2')?.value||'').toLowerCase().trim();
-    $$('#forumTopicList .forum-topic-item').forEach(item=>{ item.style.display = item.textContent.toLowerCase().includes(q) ? '' : 'none'; });
-  }
+  function filterTopics(){ return; }
 
   async function reportContent(kind, targetId){
-    const reason = prompt('Motivo da denúncia? Ex: spam, ofensa, conteúdo impróprio');
-    if(!reason) return;
-    const api = window.spiderFirebase, ctx = window.spiderGetContext?.() || {currentUid: window._spiderUid, currentUser: window._spiderUser};
-    if(!api || !ctx?.currentUid){ alert('Faça login para denunciar.'); return; }
-    try{
-      await api.addDoc(api.collection(api.db,'reports'), {kind, targetId, reason: String(reason).slice(0,200), uid: ctx.currentUid, user: ctx.currentUser?.user||'user', createdAt: api.serverTimestamp(), status:'open'});
-      Sound.beep('ok'); window.showNotification ? window.showNotification('Denúncia enviada para a moderação.') : alert('Denúncia enviada.');
-    }catch(e){ console.warn(e); Sound.beep('bad'); alert('Não consegui enviar a denúncia. Confira as regras do Firebase.'); }
+    // DESATIVADO: app.js já tem forumReportTopic nativo — evita botão duplicado
+    return;
   }
   window.spiderReportContent = reportContent;
 
   function addReportButtons(){
-    const topicBox = $('#forumTopicBody .topic-actions');
-    if(topicBox && !$('#forumReportTopicBtn') && window.forumCurrentTopic){
-      const b=document.createElement('button'); b.id='forumReportTopicBtn'; b.className='report-btn'; b.textContent='🚩 Denunciar'; b.onclick=(e)=>{e.stopPropagation(); reportContent('topic', window.forumCurrentTopic?.id || 'unknown');}; topicBox.appendChild(b);
-    }
-    $$('#forumRepliesList .forum-reply').forEach((r,i)=>{ if(r.querySelector('.report-btn')) return; const b=document.createElement('button'); b.className='report-btn'; b.textContent='🚩 Denunciar resposta'; b.style.marginTop='8px'; b.onclick=()=>reportContent('reply', 'reply_visible_'+i); r.appendChild(b); });
+    // DESATIVADO: app.js já injeta botão de denúncia nativo no topic-actions
+    return;
   }
 
   function wrap(name, before, after){
@@ -109,8 +94,6 @@
 
   function installWrappers(){
     ['toggleGame','toggleSnake','toggleFight','toggleMemory'].forEach(n=>wrap(n,()=>Sound.beep('ok'),()=>{addSnakeMobileControls(); addFightMobileHelp();}));
-    ['forumOpenCategory','forumShowTopics'].forEach(n=>wrap(n,null,()=>setTimeout(()=>{addForumTools(); filterTopics();},250)));
-    ['forumOpenTopic','forumLoadReplies'].forEach(n=>wrap(n,null,()=>setTimeout(addReportButtons,350)));
     ['sendChat','forumCreateTopic','forumSendReply','forumLikeTopic'].forEach(n=>wrap(n,()=>Sound.beep('click'),()=>{}));
   }
 
@@ -123,12 +106,11 @@
   window.spiderShowGameOver = function(title,text,score,best){ createGameOverOverlay(); $('#gameOverTitle').textContent=title; $('#gameOverText').textContent=text; $('#gameOverScore').textContent=score||0; $('#gameOverBest').textContent=best||0; $('#gameOverPremium').classList.add('show'); Sound.beep(title.toLowerCase().includes('vit')?'win':'bad'); };
 
   window.addEventListener('load', ()=>{
-    addSoundButton(); addForumTools(); createGameOverOverlay();
+    addSoundButton(); createGameOverOverlay();
     // Delay wrappers until after ES module (app.js) has fully executed
     // ES modules are deferred but run before 'load', so a short setTimeout is safe
     setTimeout(()=>{ installWrappers(); addSnakeMobileControls(); addFightMobileHelp(); }, 120);
     document.addEventListener('click', e=>{ if(e.target.closest('button,.game-card-pro,.nav-btn,.mnav-btn')) Sound.beep('click'); }, true);
-    const mo = new MutationObserver(()=>{ addForumTools(); addReportButtons(); });
-    mo.observe(document.body,{childList:true,subtree:true});
+    // MutationObserver removido: conflitava com a renderização nativa do fórum/admin em app.js
   });
 })();
